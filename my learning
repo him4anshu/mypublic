@@ -1,0 +1,2394 @@
+/*global sfx: true, TLT: true */
+var aqp = aqp || {};
+
+aqp.driver = aqp.driver || {};
+
+function convertDateToyyyymmdd(dob) {
+	var x = new Date(dob);
+    var y = x.getFullYear().toString();
+    var m = (x.getMonth() + 1).toString();
+    var d = x.getDate().toString();
+    (d.length == 1) && (d = '0' + d);
+    (m.length == 1) && (m = '0' + m);
+    var yyyymmdd = y + m + d;
+    return yyyymmdd;
+}
+
+(function(module, $, undefined) {
+
+    var driverFormSelector = '#driverForm', driverActionSelector = "#driverAction", effectiveDateSelector = '#effectiveDate', channelSelector = '#channel', driverLicValuePermit = 'permit', driverLicValueUnLicensed = 'unlicensed', maxNumOfDriversToQuote = 4, vehicleAssignedHideShowSelector = '#vehicleAssigned', deleteDriverModalSelector = '#deleteDriver', relationToApplicantOtherExplainedSelectorPrefix = "#driverRelationshipToApplicantOtherExplained_", sendToAgentLinkSelector = '#sendToAgentLink', maxDriversSelectedForQuoteModalSelector = '#maxDriversSelectedForQuoteModal', ageReceivedLicenseSelectorPrefix = '#ageReceivedLicense', whenReceivedLicenseSelectorPrefix = '#whenReceivedLicense', driver1IndexSelector = '#driver1Index', adpAndCRMDriversUpdatingIndicatorSelector = '#adpAndCRMDriversUpdatingIndicator', addDriverButtonSelector = '#addDriverButton', adpAndCRMDriversRowSelector = '#driversSectionContainer', driveridx = 0, driverNumForLic = 0, ageReceivedLicensedDefault = 16, readOnlyDlnElementSelectorPrefix = '#readOnly', whenContinuouslyLicenseSelectorPrefix = '#whenContinuouslyLicensed', continuouslyLicensedIndPrefix = '#continuouslyLicensedInd', ownedResidenceLivedInGlobal = '', additionalDriversAddedSectionPrefix = '#additionalDriversAddedSection', 
+    adpStartTime = 0, adpEndTime = 0, adpDriverLoadTime = 0,
+    driverLicValidate = {
+        name : "driverLicValidate",
+        validate : function(valueIn, message) {
+            return aqp.common.driverLicValidate(valueIn, message);
+        }
+    };
+
+    module.addIconTitle = function() {
+        $(".gray-lock").each(function() {
+            $(this).prop('title', $('#lockHelp').val());
+        });
+    };
+
+    module.actionSubmit = function(action) {
+        $(driverFormSelector).attr("action", action);
+        $(driverFormSelector).submit();
+        return false;
+    };
+
+    module.escapeSpecialChars = function(input) {
+        return input.replace(/(\[|\]|\.)/g, '\\$1');
+    };
+    
+    module.stripReturnAndNewlines = function(input) {
+        input = input.replace('\r', '');
+        input = input.replace('\n', '');
+        return input;
+    };
+
+    module._sendToAgent = function() {
+        return module.actionSubmit($('#sendToAgentAction').val());
+    };
+
+    module._sendToNecho = function() {
+        return module.actionSubmit($('#sendToNechoAction').val());
+    };
+
+    module._getSelectedDriverCount = function() {
+        return $('input[id^=driverSelected]:checked').length + 1;
+    };
+
+    module._callAjax = function(requestUrl, requestData, ajaxSettings, successFunction, errorFunction) {
+        $.ajax({
+            url : requestUrl,
+            type : ajaxSettings.type,
+            contentType : ajaxSettings.contentType,
+            async : ajaxSettings.async,
+            data : requestData,
+            dataType : ajaxSettings.dataType,
+            timeout : ajaxSettings.timeout,
+            success : function(response) {
+                successFunction(response);
+            },
+            error : function(jqXHR, status, message) {
+                if (errorFunction !== null) {
+                    errorFunction(jqXHR, status, message);
+                }
+            }
+        });
+    };
+    
+    module._callAjaxWithDriverIndex = function(requestUrl, requestData, ajaxSettings, successFunction, errorFunction,driverIndex) {
+        $.ajax({
+            url : requestUrl,
+            type : ajaxSettings.type,
+            contentType : ajaxSettings.contentType,
+            async : ajaxSettings.async,
+            data : requestData,
+            dataType : ajaxSettings.dataType,
+            timeout : ajaxSettings.timeout,
+            success : function(response) {
+                successFunction(response,driverIndex);
+            },
+            error : function(jqXHR, status, message) {
+                if (errorFunction !== null) {
+                    errorFunction(jqXHR, status, message, driverIndex);
+                }
+            }
+        });
+    };
+
+    module._showVehicles = function(id) {
+        var rval, idValue, loweredValue;
+        rval = true;
+        id = module.escapeSpecialChars(id);
+        idValue = $('#' + id).val();
+        if (!idValue) {
+            return rval;
+        }
+        loweredValue = idValue.toLowerCase();
+        if (loweredValue === driverLicValuePermit || loweredValue === driverLicValueUnLicensed) {
+            rval = false;
+        }
+        return rval;
+    };
+
+    module._hideShowVehicleAssignedOnLoad = function() {
+        var shouldDisplay,i;
+        
+        shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+        
+        if (shouldDisplay) { 
+            //For CA where question is at household level, need to determine hide or show on load
+           
+            module._showHideDriverAssignmentQuestionHouseholdLevel();
+        }
+        
+        i=0;
+        $('input[type="text"]').filter("[id*='licenseNumber']").each(function() {
+            
+            if (!shouldDisplay) {
+                module._hideShowVehicleAssigned(this);
+            } else {
+                
+                module._showHideDriverAssignmentQuestionHouseholdLevel();
+            }
+            i++;
+        });
+    };
+
+    module._hideShowVehicleAssigned = function(element) {
+        var vehicleSection, nameOfSection, ids, elementIndex, hiddenInput;
+        if (typeof element === undefined) {
+            return;
+        }
+        ids = $(element).attr('id').split('_');
+        elementIndex = ids[1];
+        elementIndex = elementIndex.replace(/\D+/g, '');
+        vehicleSection = $(vehicleAssignedHideShowSelector + elementIndex);
+        if (module._showVehicles($(element).attr('id')) === true) {
+            vehicleSection.show();
+        } else {
+            vehicleSection.hide();
+        }
+    };
+ 
+    module._hideShowVehicleAssignedHouseholdLevel = function(element,driverIndex) {
+        var vehicleSelector,loweredValue,driverSelected;
+       
+       
+        driverSelected = $('input[id^=driverSelected_' + driverIndex + ']:checked');
+        
+        if (($(driverSelected).prop('checked')) || (driverIndex === '0') || (driverIndex === 0)) {
+   
+                 vehicleSelector = $('#vehicleAssignedProperty' + driverIndex);
+                 loweredValue = $(element).val().toLowerCase();
+            
+                 if (loweredValue === driverLicValuePermit || loweredValue === driverLicValueUnLicensed) {
+                     module._hideVehicleAssignedHouseholdLevel(element);
+                 } else {
+                     module._showVehicleAssignedHouseholdLevel(element);
+                 }
+                 
+        } else {
+       
+                  module._hideVehicleAssignedHouseholdLevel(element);
+          
+        }
+       
+   };
+    
+    module._hideVehicleAssignedHouseholdLevel = function(element) {
+        var driverIndex, vehicleSelector,shouldDisplay;
+         
+        shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+         
+         if (shouldDisplay) {
+             driverIndex = module._getIndexFromAttribute($(element).attr('name'));
+             vehicleSelector = $('#vehicleAssignedProperty' + driverIndex);
+          
+             vehicleSelector.hide();
+       
+         }
+    };
+
+    module._showVehicleAssignedHouseholdLevel = function(element) {
+         var driverIndex, vehicleSelector,shouldDisplay;
+         
+         shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+         
+         if (shouldDisplay) {
+            driverIndex = module._getIndexFromAttribute($(element).attr('name'));
+            module._displayVehicleAssignmentName(driverIndex);
+            vehicleSelector = $('#vehicleAssignedProperty' + driverIndex);
+         
+            vehicleSelector.show();
+         }
+    };
+    
+
+    module._deleteAdditionalDriver = function(driverCollectionId, driverIndex) {
+        if (typeof driverCollectionId !== undefined) {
+            $('#driverIdDeleted').prop('value', driverCollectionId);
+            $('#driverIndexDeleted').prop('value', driverIndex);
+            $(deleteDriverModalSelector).modal();
+            return false;
+        }
+    };
+
+    module._toggleDriverSelection = function(driverIndex, isChecked) {
+        if(isChecked){
+            $('#driverShowQuestion_'+driverIndex).removeClass('hidden');
+            $('#driverQuestionSelected'+driverIndex).removeClass('hidden');
+            $('#driverShowQuestion_'+driverIndex).text('Collapse');
+        }
+        $('#driverSelectedHidden' + driverIndex).val(isChecked);
+    };
+
+    module._toggleDriverDisplay = function(element) {
+        var ids, driverFoundTitleElement, elementIndex, boldStyleClass = 'bold-style-class', driverSelectedHideShowSelectorPrefix = '#driverSelectedHideShow';
+        ids = $(element).attr('id').split('_');
+        elementIndex = ids[1];
+        driverFoundTitleElement = $('#driverFoundTitle' + elementIndex);
+        if ($(element).prop('checked')) {
+            if (module._getSelectedDriverCount() > maxNumOfDriversToQuote) {
+                $(element).removeAttr('checked');
+                $(driverSelectedHideShowSelectorPrefix + elementIndex).hide();
+                $(maxDriversSelectedForQuoteModalSelector).modal();
+            } else {
+                $(driverSelectedHideShowSelectorPrefix + elementIndex).show();
+                $(element).siblings("span").addClass(boldStyleClass);
+                if (driverFoundTitleElement.length > 0) {
+                    driverFoundTitleElement.addClass(boldStyleClass);
+                }
+                module._showVehicleAssignedHouseholdLevel(element);
+            }
+        } else {
+            if (driverFoundTitleElement.length > 0) {
+                driverFoundTitleElement.removeClass(boldStyleClass);
+                $(element).siblings("span").removeClass(boldStyleClass);
+            }
+            module._hideVehicleAssignedHouseholdLevel(element);
+        }
+    };
+
+    module._hideMaritalStatusForRelationshipToApplicantSpouseOnLoad = function() {
+        var ids, elementRowId, elementRow;
+        $('select').filter("[id*='driverRelationshipToApplicant']").each(function() {
+            ids = module._getDriverIndexFromRelationshipToApplicantId($(this).attr('id'));
+            elementRowId = 'drivers[' + ids + '].operator.maritalStatus';
+            elementRowId = module.escapeSpecialChars(elementRowId);
+            elementRow = $('[id="' + elementRowId + '"]');
+            if (module.shouldHideMaritalStatus(this.value)) {
+                elementRow.hide();
+            }
+        });
+    };
+    
+    module._bindVehicleAssignmentQuestionEvents = function() {
+          var driverIndex, shouldDisplay;
+          
+          shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+          
+          if (shouldDisplay) {
+              
+             $('input[type="text"]').filter("[id*='firstName']").blur(function() {
+                 driverIndex = module._getIndexFromAttribute($(this).attr('name'));
+                 module._displayVehicleAssignmentName(driverIndex);
+              });
+            
+             $('input[type="text"]').filter("[id*='middleName']").blur(function() {
+                 driverIndex = module._getIndexFromAttribute($(this).attr('name'));
+                 module._displayVehicleAssignmentName(driverIndex);
+               });
+             
+             $('input[type="text"]').filter("[id*='lastName']").blur(function() {
+                 driverIndex = module._getIndexFromAttribute($(this).attr('name'));
+                 module._displayVehicleAssignmentName(driverIndex);
+               });
+             
+             $('select').filter("[id*='suffix']").blur(function() {
+                 driverIndex = module._getIndexFromAttribute($(this).attr('name'));
+                 module._displayVehicleAssignmentName(driverIndex);
+              }); 
+          }
+    };
+
+    module._displayVehicleAssignmentName = function(driverIndex) {
+    
+        var driverNameSelector, firstName,middleName,lastName,suffix;
+        
+        firstName = module._retrieveAddtlDriverNamePropertyFromPage(driverIndex, 'firstName');
+        middleName = module._retrieveAddtlDriverNamePropertyFromPage(driverIndex, 'middleName');
+        lastName = module._retrieveAddtlDriverNamePropertyFromPage(driverIndex, 'lastName');
+        suffix = module._retrieveAddtlDriverSuffixFromPage(driverIndex);
+        
+        driverNameSelector = $("label[id*='sfx_drivers[" + driverIndex + "].oprExtension.vehicleAssigned_lbl']");
+       
+        driverNameSelector.text(firstName + " " + middleName + " " + lastName + " " + suffix);
+          
+    };
+    
+    module._displayVehicleAssignmentPrimaryApplicantName = function(fullName) { 
+        var driverNameSelector;
+        driverNameSelector = $("label[id*='sfx_drivers[0].oprExtension.vehicleAssigned_lbl']");
+        driverNameSelector.text(fullName);
+    };
+    
+    
+
+    module._bindAgeReceivedLicenseLostFocus = function() {
+        $('input[type="text"]').filter("[id*='ageReceivedLicense']").blur(function() {
+            if ($('#state').val() === 'NJ') {
+                ageReceivedLicensedDefault = "";
+            }
+            if ($(this).val() === '') {
+                $(this).val(ageReceivedLicensedDefault);
+            }
+
+            driverNumForLic = module._getIndexFromAttribute($(this).attr('id'));
+            
+            if($("#whenLicensed"+driverNumForLic).length === 0){
+                return;
+            }
+            module._determineHideShowWhenReceivedLicense();
+        });   
+    };
+
+    module._hideShowWhenReceivedLicense = function() {
+        $('input[type="text"]').filter("[id*='ageReceivedLicense']").each(function() {
+            driverNumForLic = module._getIndexFromAttribute($(this).attr('id'));
+
+            if ($("#whenLicensed" + driverNumForLic).length === 0) {
+                return;
+            }
+            module._determineHideShowWhenReceivedLicense();
+        });
+    };
+
+    module._bindWhenLicensedSelection = function() {
+        var id, elementIndex;
+        $('[id^="whenLicensed"').find("select").change(function() {
+            id = $(this).attr('name');
+            elementIndex = module._getIndexFromAttribute(id);
+            module._determineHideShowWhenContinuouslyLicensed(this, elementIndex);
+        });
+        $('[id^="monthLicensed"').trigger('change');
+    };
+
+    module._determineHideShowWhenReceivedLicense = function() {
+        var ageReceivedLicenseSelector, ageReceivedLicense, yearReceivedLicense, dateReceivedLicense, url, dob, dobNodes, effectiveDate, effectiveDateArray, ajaxSettings, operContainerSelector, licnsIdentifier, operContainerId, requestData, numberRangeObject, dateArr;
+
+        ageReceivedLicenseSelector = ageReceivedLicenseSelectorPrefix + driverNumForLic + ' .input-edit';
+        ageReceivedLicense = $(ageReceivedLicenseSelector).prop('value');
+        // Should never happen
+        if (typeof ageReceivedLicense === "undefined") {
+            return;
+        }
+
+        if (driverNumForLic === '0') {
+            dob = aqp.driver.aqpdriver1Info;
+        } else {
+            dobNodes = $('#dob' + driverNumForLic + ' .input-edit');
+
+            if (dobNodes.length === 0) {
+                dob = $('#operDobId\\[' + driverNumForLic + '\\]').prop('value');
+            } else {
+                dob = dobNodes.prop('value');
+                if (dob === "XX/XX/XXXX"){
+                    dob = $('#operDobId\\[' + driverNumForLic + '\\]').prop('value');
+                }
+            }
+        }
+
+        if (dob !== null && typeof dob !== 'undefined' && dob.indexOf('/') !== -1) {
+            dateArr = dob.split('/');
+            dob = dateArr[2] + dateArr[0] + dateArr[1];
+            dateArr[1]=dateArr[1].startsWith("0")?dateArr[1].substr(1):dateArr[1];
+            $('#dayLicensed'+ driverNumForLic +'_aqpDateFieldsSelector').val(dateArr[1]); 
+    
+            $("label[for='dayLicensed"+ driverNumForLic +"_aqpDateFieldsSelector']").addClass('uitk-select__label--move-up');
+           
+          
+
+        }
+
+        if (!(sfx.util.date.parseDate(dob).isValid) || !($.isNumeric(ageReceivedLicense))) {
+             return;
+         }
+
+        numberRangeObject = module._getnumberRangeObject(ageReceivedLicenseSelector);
+        if (!numberRangeObject.isValid) {
+            return;
+        }
+
+        // BirthYear + ageReceivedLicensed
+        yearReceivedLicense = parseInt(dob.substr(0, 4), 10) + parseInt(ageReceivedLicense, 10);
+        dateReceivedLicense = new Date(yearReceivedLicense, parseInt(dob.substr(4, 2), 10) - 1, parseInt(dob.substr(6, 2), 10));
+
+        /**
+		 * If the calculated date is greater than the effective date the product
+		 * model will throw an error on the ageReceivedLicense field as its bad
+		 * data so hide the "When" licensed fields
+		 */
+        effectiveDateArray = $(effectiveDateSelector).val().split('/');
+
+        effectiveDate = new Date(effectiveDateArray[2], effectiveDateArray[0] - 1, effectiveDateArray[1]);
+        if (dateReceivedLicense.getTime() > effectiveDate.getTime()) {
+            module._showWhenReceivedLicense(false);
+            return;
+        }
+
+        url = aqp.utils.prependContextRootAndServletPath("driver/ageReceivedLicense");
+        operContainerSelector = '#operContainerId[' + driverNumForLic + ']';
+        operContainerSelector = module.escapeSpecialChars(operContainerSelector);
+        operContainerId = $(operContainerSelector).val();
+        licnsIdentifier = $('#whenLicensed' + driverNumForLic).find('select').first().attr('data-identifier');
+
+        requestData = {
+            'ageReceivedLicense' : ageReceivedLicense,
+            'dte' : dob,
+            'identifier' : operContainerId,
+            'licnsIdentifier' : licnsIdentifier
+        };
+
+        ajaxSettings = {
+            'type' : 'GET',
+            'contentType' : 'application/x-www-form-urlencoded',
+            'async' : false,
+            'dataType' : 'json',
+            'timeout' : 2000
+        };
+        module._callAjax(url, requestData, ajaxSettings, module._showWhenReceivedLicense, module._doNotShowWhenReceivedLicense);
+    };
+    
+    module._removeOriginalLicenseDateErrorMessage = function(driverNumForLic) {
+        var userEnteredOriginalLicensedDateField, userEnteredOriginalLicensedDateInput, userEnteredOriginalLicensedDateValue, dobSelector, dob;
+         
+        userEnteredOriginalLicensedDateInput = "#userEnteredOriginalLicensedDate" + driverNumForLic + ' .input-edit';
+        userEnteredOriginalLicensedDateValue = $(userEnteredOriginalLicensedDateInput).prop('value');
+        
+        dobSelector = '#dob' + driverNumForLic + ' .input-edit';
+        if (driverNumForLic !== '0') {
+            dobSelector = '#dob' + driverNumForLic + ' .input-edit';
+            dob = $('#dob' + driverNumForLic + ' .input-edit').prop('value');
+        }
+        
+        if(dob !== "" && dob !== undefined && userEnteredOriginalLicensedDateValue !== "" && userEnteredOriginalLicensedDateValue !== undefined) {
+            userEnteredOriginalLicensedDateField = $("input[id*='sfx_drivers[" + driverNumForLic + "].operator.operatorLicense.driverLicense.userEnteredOriginalLicensedDate");
+            sfx.validation.validator.util.addRemoveErrorClasses($(userEnteredOriginalLicensedDateField), true); 
+        }
+    };
+
+    module._showWhenReceivedLicense = function(show) {
+        var whenReceivedLicenseSelector = whenReceivedLicenseSelectorPrefix + driverNumForLic;
+        if (show) {
+            sfx.hideshow.show($(whenReceivedLicenseSelector), '');
+        } else {
+            sfx.hideshow.hide($(whenReceivedLicenseSelector), '');
+        }
+    };
+
+    module._getnumberRangeObject = function(ageReceivedLicenseSelector) {
+        var minValue, maxValue, ageReceivedLicense, args;
+        ageReceivedLicense = $(ageReceivedLicenseSelector).prop("value");
+        minValue = $(ageReceivedLicenseSelector).attr("data-min");
+        maxValue = $(ageReceivedLicenseSelector).attr("data-max");
+        args = {
+            min : minValue,
+            max : maxValue
+        };
+
+        return sfx.validation.validator.get("numberrange").validate(ageReceivedLicense, args);
+    };
+
+    module._doNotShowWhenReceivedLicense = function() {
+        var whenReceivedLicenseSelector = whenReceivedLicenseSelectorPrefix + driverNumForLic;
+        sfx.hideshow.show($(whenReceivedLicenseSelector), '');
+    };
+    module._getIndexFromAttribute = function(attrib) {
+        return attrib.substring(attrib.indexOf("[") + 1, attrib.indexOf("]"));
+    };
+    module._determineHideShowWhenContinuouslyLicensed = function(element, elementIndex) {
+        var id, whenContinuouslyLicenseSelector, continuouslyLicensedIndSelector, yearReceivedLicense, dateReceivedLicense, effectiveDate, effectiveDateArray, operContainerSelector, operContainerId, licnsIdentifier, url, requestData, yearLicensed, monthLicensed, dayLicensed;
+
+        if (elementIndex !== '0') {
+            operContainerSelector = '#operContainerId[' + elementIndex + ']';
+            operContainerSelector = module.escapeSpecialChars(operContainerSelector);
+            operContainerId = $(operContainerSelector).val();
+        } else {
+            operContainerId = '';
+        }
+ 
+        licnsIdentifier = $('#whenLicensed' + driverNumForLic).find('select').first().attr('data-identifier');
+        yearLicensed = $('#whenLicensed' + elementIndex).find('[id^="purchaseYear' + elementIndex + '"]').val();
+        monthLicensed = $('#whenLicensed' + elementIndex).find('[id^="monthLicensed' + elementIndex + '"]').val();
+        dayLicensed = $('#whenLicensed' + elementIndex).find('[id^="dayLicensed' + elementIndex + '"]').val();
+
+        if (!$.isNumeric(yearLicensed) || !$.isNumeric(monthLicensed) || !$.isNumeric(dayLicensed)) {
+            return;
+        }
+
+        url = aqp.utils.prependContextRootAndServletPath("driver/continuouslyLicensedDisplay");
+        requestData = {
+            'elementIndex' : elementIndex,
+            'identifier' : operContainerId,
+            'licnsIdentifier' : licnsIdentifier,
+            'yearLicensed' : yearLicensed,
+            'monthLicensed' : monthLicensed,
+            'dayLicensed' : dayLicensed
+        };
+        $.ajax({
+            'type' : 'GET',
+            'contentType' : 'application/json',
+            'async' : false,
+            'dataType' : 'json',
+            'timeout' : 2000,
+            'context' : requestData,
+            'url' : url,
+            'data' : requestData,
+            'success' : function(response) {
+                module._showContinuouslyLicensed(response, requestData);
+
+            },
+            'error' : function() {
+                module._doNotShowContinuouslyLicensed(requestData);
+            }
+        });
+
+    };
+    module._showContinuouslyLicensed = function(response, requestData) {
+        var whenContinuouslyLicenseSelector;
+        whenContinuouslyLicenseSelector = whenContinuouslyLicenseSelectorPrefix + requestData.elementIndex;
+        if (response) {
+            sfx.hideshow.show($(whenContinuouslyLicenseSelector), '');
+        } else {
+            sfx.hideshow.hide($(whenContinuouslyLicenseSelector), '');
+            $(continuouslyLicensedIndPrefix + requestData.elementIndex + ' input').removeAttr('checked');
+
+        }
+    };
+    module._doNotShowContinuouslyLicensed = function(requestData) {
+        var whenContinuouslyLicenseSelector;
+        whenContinuouslyLicenseSelector = whenContinuouslyLicenseSelectorPrefix + requestData.elementIndex;
+        sfx.hideshow.hide($(whenContinuouslyLicenseSelector), '');
+    };
+
+    /**
+	 * Used to hide/show relationship to applicant relationship to primary other
+	 * explanation.
+	 */
+    module._isRelationhipOtherType = function(driverId) {
+        if ($(relationToApplicantOtherExplainedSelectorPrefix + driverId).length === 0) {
+            return false;
+        }
+        var retVal, relationToApplicantSelector, relationshipValue, selectedIndex, elementSelector;
+        retVal = false;
+        // relationToApplicantSelector= relationToApplicantSelectorPrefix +
+		// driverId;
+        relationToApplicantSelector = $("select[id*='sfx_drivers[" + driverId + "].operator.driverRelationshipToApplicant_input']");
+        relationshipValue = $(relationToApplicantSelector).val();
+        // If we're in the customer channel in a non SA retrieval situation then
+		// the model won't send the property, so we won't worry about it.
+        retVal = module._isOtherRelative(relationshipValue) || module._isOtherNonRelative(relationshipValue);
+        if (retVal) {
+            // Label needs to match other relationship text value according to
+			// CCL.
+            selectedIndex = $(relationToApplicantSelector)[0].selectedIndex;
+            $(relationToApplicantOtherExplainedSelectorPrefix + 'Label_' + driverId)[0].innerText = $(relationToApplicantSelector)[0][selectedIndex].text;
+            
+            //reseting selected value for OtherRelative or OtherNonRelative upon relationship selectionchange
+            $(relationToApplicantOtherExplainedSelectorPrefix + driverId).trigger("sfx-init").trigger("sfx-load");
+
+            //removing move up class on upon relationship selectionchange
+            elementSelector = "label[for='driverRelationshipToApplicantOtherExplained_" + driverId+ "']";
+            $(elementSelector).removeClass("uitk-select__label--move-up");          
+                
+        }
+        return retVal;
+    };
+
+    module._getDriverIndexFromRelationshipToApplicantId = function(attrib) {
+        return attrib.substring(attrib.indexOf("[") + 1, attrib.indexOf("]"));
+    };
+    
+    module._onUpdateDriverLicenseNumber = function(element) {
+        var shouldDisplayAtHHLevel,driverLicenseNumber, driverLicenseNumberSelector, driverLicenseContainerId, driverLicenseContainerSelector, operExtContainerId, operExtContainerSelector, vehicleAssigned, vehicleAssignedSelector, vehicleAssignedUsage, vehicleAssignedUsageSelector, requestUrl, requestData, ajaxSettings;
+
+        driveridx = module._getDriverIndexFromRelationshipToApplicantId($(element).context.id);
+
+        if (module._isCustomerChannel()) {
+            driverLicenseNumberSelector = "drivers[" + driveridx + "].operator.operatorLicense.driverLicense.licenseNumberUserEntered";
+        } else {
+            driverLicenseNumberSelector = "drivers[" + driveridx + "].operator.operatorLicense.driverLicense.licenseNumberSystem";
+        }
+
+        operExtContainerSelector = '#operExtContainerId[' + driveridx + ']';
+        operExtContainerSelector = module.escapeSpecialChars(operExtContainerSelector);
+        operExtContainerId = $(operExtContainerSelector).val();
+
+        driverLicenseContainerSelector = '#driverLicenseContainerId[' + driveridx + ']';
+        driverLicenseContainerSelector = module.escapeSpecialChars(driverLicenseContainerSelector);
+        driverLicenseContainerId = $(driverLicenseContainerSelector).val();
+
+        driverLicenseNumberSelector = module.escapeSpecialChars(driverLicenseNumberSelector);
+        driverLicenseNumber = $('input[type=text]').filter("[name='" + driverLicenseNumberSelector + "']").val();
+
+        
+        shouldDisplayAtHHLevel = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+        if (shouldDisplayAtHHLevel) {
+        
+            vehicleAssignedSelector = $("select[id*='sfx_drivers[" + driveridx + "].oprExtension.vehicleAssigned_input']");
+            vehicleAssigned = $(vehicleAssignedSelector).val();
+        
+        } else {
+            vehicleAssignedSelector = "drivers[" + driveridx + "].oprExtension.vehicleAssigned";
+            vehicleAssignedSelector = module.escapeSpecialChars(vehicleAssignedSelector);
+            vehicleAssigned = $('input[type=radio]').filter("[name='" + vehicleAssignedSelector + "']").filter(':checked').val();
+        }
+        vehicleAssignedUsageSelector = "drivers[" + driveridx + "].oprExtension.vehAssignUsageAtLeastTenPercent";
+        vehicleAssignedUsageSelector = module.escapeSpecialChars(vehicleAssignedUsageSelector);
+        vehicleAssignedUsage = $('input[type=radio]').filter("[name='" + vehicleAssignedUsageSelector + "']").filter(':checked').val();
+
+        requestUrl = aqp.utils.prependContextRootAndServletPath("driver/onUpdateDriverLicenseNumber");
+        requestData = {
+            'driverLicenseNumber' : driverLicenseNumber,
+            'driverLicenseContainerId' : driverLicenseContainerId,
+            'operExtContainerId' : operExtContainerId,
+            'driverIndex' : driveridx,
+            'vehicleAssigned' : vehicleAssigned,
+            'isCustomerChannel' : module._isCustomerChannel(),
+            'vehicleAssignedUsage' : vehicleAssignedUsage
+        };
+        requestData = JSON.stringify(requestData);
+        ajaxSettings = {
+            'type' : 'POST',
+            'contentType' : 'application/json',
+            'async' : false,
+            'dataType' : 'html',
+            'timeout' : 2000
+        };
+        if (driverLicValidate.validate(driverLicenseNumber, "").isValid === true) {
+            module._callAjax(requestUrl, requestData, ajaxSettings, module._handleOnUpdateDriverLicenseNumberResponse, null);
+        
+        }
+    };
+    
+    module._handleOnUpdateDriverLicenseNumberResponse = function(allowedValues) {
+         var shouldDisplay,vehAssignedDivId;
+   
+        if (allowedValues) {
+            
+            shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+            if (shouldDisplay !== 'y') {
+                    vehAssignedDivId = $('#vehicleAssignedProperty' + driveridx);
+                    vehAssignedDivId.html(allowedValues);
+                    
+                    module._bindVehicleAssigned();
+            } else {
+                
+                    module._onUpdateDriverLicenseShowHideDriverAssignmentHouseholdLevel(driveridx);
+            }
+        }
+    };
+    
+    module._onUpdateVehicleAssigned = function(element) {
+        var vehicleAssigned, vehicleAssignedSelector, operContainerId, operExtContainerId, operContainerSelector, operExtContainerSelector, requestUrl, requestData, ajaxSettings, vehicleAssignedUsage, vehicleAssignedUsageSelector;
+
+        driveridx = module._getDriverIndexFromRelationshipToApplicantId($(element).context.id);
+
+        vehicleAssignedSelector = "drivers[" + driveridx + "].oprExtension.vehicleAssigned";
+        vehicleAssignedSelector = module.escapeSpecialChars(vehicleAssignedSelector);
+        vehicleAssigned = $('input[type=radio]').filter("[name='" + vehicleAssignedSelector + "']").filter(':checked').val();
+        
+        vehicleAssignedUsageSelector = "drivers[" + driveridx + "].oprExtension.vehAssignUsageAtLeastTenPercent";
+        vehicleAssignedUsageSelector = module.escapeSpecialChars(vehicleAssignedUsageSelector);
+        vehicleAssignedUsage = $('input[type=radio]').filter("[name='" + vehicleAssignedUsageSelector + "']").filter(':checked').val();
+       
+        operContainerSelector = '#operContainerId[' + driveridx + ']';
+        operContainerSelector = module.escapeSpecialChars(operContainerSelector);
+        operContainerId = $(operContainerSelector).val();
+
+        operExtContainerSelector = '#operExtContainerId[' + driveridx + ']';
+        operExtContainerSelector = module.escapeSpecialChars(operExtContainerSelector);
+        operExtContainerId = $(operExtContainerSelector).val();
+
+        requestUrl = aqp.utils.prependContextRootAndServletPath("driver/onUpdateVehicleAssigned");
+        requestData = {
+            'vehicleAssigned' : vehicleAssigned,
+            'operContainerId' : operContainerId,
+            'operExtContainerId' : operExtContainerId,
+            'driverIndex' : driveridx,
+            'vehicleAssignedUsage' : vehicleAssignedUsage
+        };
+        requestData = JSON.stringify(requestData);
+        ajaxSettings = {
+            'type' : 'POST',
+            'contentType' : 'application/json',
+            'async' : false,
+            'dataType' : 'html',
+            'timeout' : 2000
+        };
+      module._callAjax(requestUrl, requestData, ajaxSettings, module._handleOnUpdateVehicleAssignedResponse, null);
+    };
+    
+    module._handleOnUpdateVehicleAssignedResponse = function(allowedValues) {
+        var shouldDisplay,vehAssignedDivId;
+  
+           shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+           if (shouldDisplay !== 'y') {
+                   vehAssignedDivId = $('#vehicleAssignedProperty' + driveridx);
+                   vehAssignedDivId.html(allowedValues);
+                   
+                   module._bindVehicleAssigned();
+           }
+   };
+    /*
+	 * Used to change the values of the radio group Vehicle Assigned.
+	 */
+    module._onUpdateRelationshipToApplicant = function(element) {
+        var shouldDisplayAtHHLevel,relationshipToApplicant, operContainerId, operExtContainerId, shouldReverseQuestionsOrder, shouldReverseQuestionsSelector, operContainerSelector, operExtContainerSelector, requestUrl, requestData, ajaxSettings, memberOfMilitary, memberOfMilitaryWithAccessToVeh, memberOfMilitarySelector, memberOfMilitaryWithAccessToVehSelector, vehicleAssigned, vehicleAssignedSelector, vehicleAssignedUsage, vehicleAssignedUsageSelector;
+        relationshipToApplicant = element.value;
+        driveridx = module._getDriverIndexFromRelationshipToApplicantId($(element).attr('id'));
+        operContainerSelector = '#operContainerId[' + driveridx + ']';
+        operContainerSelector = module.escapeSpecialChars(operContainerSelector);
+        operContainerId = $(operContainerSelector).val();
+
+        operExtContainerSelector = '#operExtContainerId[' + driveridx + ']';
+        operExtContainerSelector = module.escapeSpecialChars(operExtContainerSelector);
+        operExtContainerId = $(operExtContainerSelector).val();
+
+        shouldReverseQuestionsSelector = '#shouldReverseQuestionsOrder';
+        shouldReverseQuestionsOrder = $(shouldReverseQuestionsSelector).val();
+
+        memberOfMilitarySelector = "drivers[" + driveridx + "].operator.memberOfMilitary";
+        memberOfMilitarySelector = module.escapeSpecialChars(memberOfMilitarySelector);
+        memberOfMilitary = $('input[type=radio]').filter("[name='" + memberOfMilitarySelector + "']").filter(':checked').val();
+
+        memberOfMilitaryWithAccessToVehSelector = "drivers[" + driveridx + "].operator.memberOfMilitaryWithAccessToVeh";
+        memberOfMilitaryWithAccessToVehSelector = module.escapeSpecialChars(memberOfMilitaryWithAccessToVehSelector);
+        memberOfMilitaryWithAccessToVeh = $('input[type=radio]').filter("[name='" + memberOfMilitaryWithAccessToVehSelector + "']").filter(
+                ':checked').val();
+        
+        shouldDisplayAtHHLevel = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+        if (shouldDisplayAtHHLevel) {
+        
+            vehicleAssignedSelector = $("select[id*='sfx_drivers[" + driveridx + "].oprExtension.vehicleAssigned_input']");
+            vehicleAssigned = $(vehicleAssignedSelector).val();
+
+        } else {
+
+            vehicleAssignedSelector = "drivers[" + driveridx + "].oprExtension.vehicleAssigned";
+            vehicleAssignedSelector = module.escapeSpecialChars(vehicleAssignedSelector);
+            vehicleAssigned = $('input[type=radio]').filter("[name='" + vehicleAssignedSelector + "']").filter(':checked').val();
+        
+            vehicleAssignedUsageSelector = "drivers[" + driveridx + "].oprExtension.vehAssignUsageAtLeastTenPercent";
+            vehicleAssignedUsageSelector = module.escapeSpecialChars(vehicleAssignedUsageSelector);
+            vehicleAssignedUsage = $('input[type=radio]').filter("[name='" + vehicleAssignedUsageSelector + "']").filter(':checked').val();
+
+        }
+        
+        requestUrl = aqp.utils.prependContextRootAndServletPath("driver/onUpdateRelationshipToApplicant");
+        requestData = {
+            'relationshipToApplicant' : relationshipToApplicant,
+            'operContainerId' : operContainerId,
+            'operExtContainerId' : operExtContainerId,
+            'driverIndex' : driveridx,
+            'shouldReverseQuestionsOrder' : shouldReverseQuestionsOrder,
+            'memberOfMilitary' : memberOfMilitary,
+            'memberOfMilitaryWithAccessToVeh' : memberOfMilitaryWithAccessToVeh,
+            'vehicleAssigned' : vehicleAssigned,
+            'vehicleAssignedUsage' : vehicleAssignedUsage
+        };
+        requestData = JSON.stringify(requestData);
+        ajaxSettings = {
+            'type' : 'POST',
+            'contentType' : 'application/json',
+            'async' : false,
+            'dataType' : 'html',
+            'timeout' : 2000
+        };
+        module._callAjax(requestUrl, requestData, ajaxSettings, module._handleOnUpdateRelationshipToApplicantResponse, null);
+    };
+
+    module._handleOnUpdateRelationshipToApplicantResponse = function(allowedValues) {
+        
+        var vehAssignedAndMilitaryPropDivId, memberOfMilitarySelector, memberOfMilitaryWithAccessToVehSelector,vehAssignedHouseholdLevelDivId,shouldDisplay;
+        
+        if (allowedValues) {
+             
+            shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+            if (!shouldDisplay) {
+
+                vehAssignedAndMilitaryPropDivId = $('#vehicleAssignedAndMilitaryProperties' + driveridx);
+                vehAssignedAndMilitaryPropDivId.html(allowedValues);
+
+                memberOfMilitarySelector = '#sfx_drivers[' + driveridx + '].operator.memberOfMilitary_help';
+                module._reorderHelpContentForSFX(module.escapeSpecialChars(memberOfMilitarySelector));
+
+                memberOfMilitarySelector = "sfx_drivers[" + driveridx + "].operator.memberOfMilitary_input_0";
+                module._triggerRadioButtonChangeEventForSFX(module.escapeSpecialChars(memberOfMilitarySelector));
+
+                memberOfMilitaryWithAccessToVehSelector = '#sfx_drivers[' + driveridx + '].operator.memberOfMilitaryWithAccessToVeh_help';
+                module._reorderHelpContentForSFX(module.escapeSpecialChars(memberOfMilitaryWithAccessToVehSelector));
+
+                module._bindMemberOfMilitaryWithAccessToVeh();
+                module._bindVehicleAssigned();
+            } else { 
+               
+                vehAssignedHouseholdLevelDivId = $('#vehicleAssignedAllowedValues' + driveridx);
+                vehAssignedHouseholdLevelDivId.html(allowedValues);
+                module._displayVehicleAssignmentName(driveridx);
+               
+               
+            }
+        }
+    };
+
+    module._triggerRadioButtonChangeEventForSFX = function(helpContentSelector) {
+        // IMPORTANT!!! SFX 8.5 and 8.6 have issues with hideAndShow elements
+		// returned in view.
+        // A manual change trigger has to be executed for the hideAndShow to
+		// refresh:
+        $('input[type=radio]').filter("[id='" + helpContentSelector + "']").filter(':checked').trigger('change');
+    };
+
+    module._reorderHelpContentForSFX = function(helpContentSelector) {
+        // IMPORTANT!!! SFX has issues with contextual help returned in view.
+
+        // The following two lines are necessary to make it work in SFX 8.5:
+        // var $helpContent = $(helpContentSelector).next(".help-content");
+        // $helpContent.closest('.row-fluid:not(.help-content)').after($helpContent);
+
+        // The following two lines are necessary to make it work in SFX 8.6:
+        var $helpContent = $(this).closest('.row-fluid');
+        $helpContent.next().after($helpContent);
+
+    };
+
+    module._onUpdateMemberOfMilitaryWithAccessToVeh = function(element) {
+        var shouldDisplayAtHHLevel,memberOfMilitary, memberOfMilitarySelector, memberOfMilitaryWithAccessToVeh, memberOfMilitaryWithAccessToVehSelector, vehicleAssigned, vehicleAssignedSelector, operContainerId, operExtContainerId, operContainerSelector, operExtContainerSelector, requestUrl, requestData, ajaxSettings, vehicleAssignedUsage, vehicleAssignedUsageSelector;
+
+        driveridx = module._getDriverIndexFromRelationshipToApplicantId($(element).context.id);
+
+        module._hideShowMilitary(driveridx);
+        memberOfMilitarySelector = "drivers[" + driveridx + "].operator.memberOfMilitary";
+        memberOfMilitarySelector = module.escapeSpecialChars(memberOfMilitarySelector);
+        memberOfMilitary = $('input[type=radio]').filter("[name='" + memberOfMilitarySelector + "']").filter(':checked').val();
+
+        memberOfMilitaryWithAccessToVehSelector = "drivers[" + driveridx + "].operator.memberOfMilitaryWithAccessToVeh";
+        memberOfMilitaryWithAccessToVehSelector = module.escapeSpecialChars(memberOfMilitaryWithAccessToVehSelector);
+        memberOfMilitaryWithAccessToVeh = $('input[type=radio]').filter("[name='" + memberOfMilitaryWithAccessToVehSelector + "']").filter(
+                ':checked').val();
+ 
+        shouldDisplayAtHHLevel = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+        if (shouldDisplayAtHHLevel) {
+        
+            vehicleAssignedSelector = $("select[id*='sfx_drivers[" + driveridx + "].oprExtension.vehicleAssigned_input']");
+            vehicleAssigned = $(vehicleAssignedSelector).val();
+
+        } else {
+        
+            vehicleAssignedSelector = "drivers[" + driveridx + "].oprExtension.vehicleAssigned";
+            vehicleAssignedSelector = module.escapeSpecialChars(vehicleAssignedSelector);
+            vehicleAssigned = $('input[type=radio]').filter("[name='" + vehicleAssignedSelector + "']").filter(':checked').val();
+            
+            vehicleAssignedUsageSelector = "drivers[" + driveridx + "].oprExtension.vehAssignUsageAtLeastTenPercent";
+            vehicleAssignedUsageSelector = module.escapeSpecialChars(vehicleAssignedUsageSelector);
+            vehicleAssignedUsage = $('input[type=radio]').filter("[name='" + vehicleAssignedUsageSelector + "']").filter(':checked').val();
+        }
+       
+       
+        operContainerSelector = '#operContainerId[' + driveridx + ']';
+        operContainerSelector = module.escapeSpecialChars(operContainerSelector);
+        operContainerId = $(operContainerSelector).val();
+
+        operExtContainerSelector = '#operExtContainerId[' + driveridx + ']';
+        operExtContainerSelector = module.escapeSpecialChars(operExtContainerSelector);
+        operExtContainerId = $(operExtContainerSelector).val();
+
+        requestUrl = aqp.utils.prependContextRootAndServletPath("driver/onUpdateMilitaryProperties");
+        requestData = {
+            'memberOfMilitary' : memberOfMilitary,
+            'memberOfMilitaryWithAccessToVeh' : memberOfMilitaryWithAccessToVeh,
+            'vehicleAssigned' : vehicleAssigned,
+            'operContainerId' : operContainerId,
+            'operExtContainerId' : operExtContainerId,
+            'driverIndex' : driveridx,
+            'vehicleAssignedUsage' : vehicleAssignedUsage
+        };
+        requestData = JSON.stringify(requestData);
+        ajaxSettings = {
+            'type' : 'POST',
+            'contentType' : 'application/json',
+            'async' : false,
+            'dataType' : 'html',
+            'timeout' : 2000
+        };
+      module._callAjax(requestUrl, requestData, ajaxSettings, module._handleOnUpdateMemberOfMilitaryWithAccessToVehResponse, null);
+      $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').trigger("sfx-init").trigger("sfx-load");
+
+    };
+
+    module._handleOnUpdateMemberOfMilitaryWithAccessToVehResponse = function(allowedValues) {
+ 
+        if (allowedValues) {
+            var vehAssignedDivId,shouldDisplay;
+            vehAssignedDivId = $('#vehicleAssignedProperty' + driveridx);
+            vehAssignedDivId.html(allowedValues);
+            
+            module._bindVehicleAssigned();
+            
+            shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+            if (shouldDisplay) {
+                 module._displayVehicleAssignmentName(driveridx);
+            }
+        }
+    };
+
+    module._onRefreshMaritalStatus = function(element) {
+        var operContainerId, operContainerSelector, requestUrl, requestData, ajaxSettings;
+
+        driveridx = module._getDriverIndexFromRelationshipToApplicantId($(element).attr('id'));
+        operContainerSelector = '#operContainerId[' + driveridx + ']';
+        operContainerSelector = module.escapeSpecialChars(operContainerSelector);
+        operContainerId = $(operContainerSelector).val();
+
+        requestUrl = aqp.utils.prependContextRootAndServletPath("driver/onRefreshMaritalStatus");
+        requestData = {
+            'operContainerId' : operContainerId,
+            'driverIndex' : driveridx
+        };
+        requestData = JSON.stringify(requestData);
+        ajaxSettings = {
+            'type' : 'POST',
+            'contentType' : 'application/json',
+            'async' : false,
+            'dataType' : 'html',
+            'timeout' : 2000
+        };
+        module._callAjax(requestUrl, requestData, ajaxSettings, module._handleMaritalStatusResponse, null);
+    };
+
+    module._handleMaritalStatusResponse = function(response) {
+        var maritalStatusSelector;
+      
+        maritalStatusSelector = '#drivers[' + driveridx + '].operator.maritalStatusDiv';
+        maritalStatusSelector = module.escapeSpecialChars(maritalStatusSelector);
+        $(maritalStatusSelector).html(response).trigger("sfx-init").trigger("sfx-load");
+    };
+
+    /**
+	 * Fetch additional questions for certain states regarding owned residences
+	 * lived in by doing an ajax call to the controller and updating the view
+	 * accordingly.
+	 */
+    module._onUpdateOwnedResidenceLivedIn = function() {
+        var ownedResidenceLivedIn, requestUrl, requestData, ajaxSettings;
+
+        // checking to see if the value has changed because the change event is
+		// firing twice and was causing the ajax call
+        // to be made twice.
+        ownedResidenceLivedIn = $("input[name*='ownedResidenceLivedIn']:checked").val();
+        if (ownedResidenceLivedInGlobal !== ownedResidenceLivedIn) {
+            ownedResidenceLivedInGlobal = ownedResidenceLivedIn;
+            requestUrl = aqp.utils.prependContextRootAndServletPath("driver/onUpdateOwnedResidenceLivedIn");
+            requestData = {
+                'ownedResidenceLivedIn' : ownedResidenceLivedIn
+            };
+            requestData = JSON.stringify(requestData);
+            ajaxSettings = {
+                'type' : 'POST',
+                'contentType' : 'application/json',
+                'async' : false,
+                'dataType' : 'html',
+                'timeout' : 2000
+            };
+
+            module._callAjax(requestUrl, requestData, ajaxSettings, module._handleUpdateOwnedResidenceLivedInResponse, null);
+        }
+    };
+
+    module._handleUpdateOwnedResidenceLivedInResponse = function(view) {
+        $('#ownedResidenceLivedInAdditionalQuestions').html(view).trigger("sfx-init").trigger("sfx-load");
+    };
+
+    // *********************************************
+    // Binds methods to execute before sending dependant property call
+    // and methods to execute after the call.
+    // *********************************************
+    module._onBeforeSendAndCompleteBinds = function() {
+
+        var driverNum, relationToApplicantSelector, beforeSendFunction, onCompletFunction;
+
+        // create functions to use in binding events.
+        beforeSendFunction = function(event, xhr, depObj, settings) {
+            if (module._isCustomerChannel()) {
+                return;
+            }
+            var driverId = depObj[0].id.substring(depObj[0].id.indexOf("_") + 1);
+            depObj[0].id.substr(depObj[0].id.length - 1);
+            if (($(relationToApplicantOtherExplainedSelectorPrefix + driverId).length === 0) ||
+                    (!module._isOtherRelative(depObj.val()) && !module._isOtherNonRelative(depObj.val()))) {
+                xhr.abort();
+                return;
+            }
+            $(relationToApplicantOtherExplainedSelectorPrefix + driverId + ' option:selected').text('Loading...');
+            $(relationToApplicantOtherExplainedSelectorPrefix + driverId)[0].disabled = true;
+            $(relationToApplicantOtherExplainedSelectorPrefix + driverId).addClass("disabled");
+        };
+        onCompletFunction = function(event, xhr, depObj, settings) {
+            if (module._isCustomerChannel()) {
+                return;
+            }
+            var driverId = event.currentTarget.id.substring(event.currentTarget.id.indexOf("_") + 1);
+            if ($(relationToApplicantOtherExplainedSelectorPrefix + driverId).length === 0) {
+                return;
+            }
+            $(relationToApplicantOtherExplainedSelectorPrefix + driverId)[0].disabled = false;
+            $(relationToApplicantOtherExplainedSelectorPrefix + driverId).removeClass("disabled");
+            
+        };
+        driverNum = 0;
+        relationToApplicantSelector = $("select[id*='drivers[' + driverNum + '].operator.driverRelationshipToApplicant']");
+        while ($(relationToApplicantSelector).length > 0) {
+            $(relationToApplicantSelector).on('data-deprefresh-beforesend', beforeSendFunction);
+            $(relationToApplicantSelector).on('data-deprefresh-complete', onCompletFunction);
+            driverNum++;
+            // if the driver 1 indicator exists, then we are dealing with the
+			// primary driver and we want to skip it.
+            if ($("#driver1Indicator" + driverNum).length > 0) {
+                driverNum++;
+            }
+            relationToApplicantSelector = $("select[id*='drivers[' + driverNum + '].operator.driverRelationshipToApplicant']");
+
+        }
+    };
+
+    // *********************************************
+    // send helper methods
+    // *********************************************
+    module._isOtherRelative = function(val) {
+        if (val === undefined) {
+            return false;
+        }
+        return val.toUpperCase().indexOf("OTHER RELATIVE") > -1;
+    };
+
+    module._isOtherNonRelative = function(val) {
+        if (val === undefined) {
+            return false;
+        }
+        return val.toUpperCase().indexOf("OTHER NON-RELATIVE") > -1;
+    };
+
+    module._isCustomerChannel = function() {
+        return $(channelSelector).val().toUpperCase() === 'CUSTOMER';
+    };
+
+    module._loadADPAndCRMDrivers = function() {
+        var ajaxSettings;
+        adpStartTime = new Date();
+        if ($('#isAdpLoaded').val() === 'true') {
+            return false;
+        }
+        module._beforeLoadADPAndCRMDrivers();
+        ajaxSettings = {
+            'type' : 'GET',
+            'contentType' : 'application/x-www-form-urlencoded',
+            'async' : true,
+            'dataType' : 'html',
+            'timeout' : 10000
+        };
+        module._callAjax(aqp.utils.prependContextRootAndServletPath('driver/adpload'), null, ajaxSettings,
+                module._handleLoadADPAndCRMDriversResponse, module._cancelLoadADPAndCRMDrivers);
+    };
+
+    module._beforeLoadADPAndCRMDrivers = function() {
+        $(addDriverButtonSelector).attr('disabled', true);
+        $(addDriverButtonSelector).prop('disabled', true);
+        var $adpDrivereRow = $('#adpDriverLoading');
+        sfx.updatingIndicator.show($adpDrivereRow);
+
+        // $(adpAndCRMDriversUpdatingIndicatorSelector).show();
+    };
+
+    module._handleLoadADPAndCRMDriversResponse = function(response) {
+        $(adpAndCRMDriversRowSelector).html(response).trigger("sfx-init").trigger("sfx-load");
+        module._addAdpAndCRMDriversToHouseholdSection();
+        module._afterLoadADPAndCRMDrivers();
+        module._bindEvents();
+        module.addIconTitle();
+        adpEndTime = new Date();
+        adpDriverLoadTime = (adpEndTime.getTime() - adpStartTime.getTime());
+        var tlNameValueObject = {
+            measure : "adpDriverTiming", // name of the timing event
+            ms : adpDriverLoadTime
+        // execution time in milliseconds
+        };
+        try {
+            TLT.logCustomEvent("ClientTiming", tlNameValueObject);
+        } catch (e) {
+
+        }
+    };
+    
+    module._addAdpAndCRMDriversToHouseholdSection = function() {
+        var driverName, driverIndex, driverSelected, target, index,
+            elementSuffix = ["operator.fraudIndicator","operator.seatBelt","oprExtension.lowIncomeDiscountIndicator","operator.driverHasDependentsIndicator"];
+        
+        $(adpAndCRMDriversRowSelector).find("input[name$='driverSelected']").each(function() {
+           driverName = $(this).siblings("span[id='driverHeaderText'").text().split(",")[0];
+           driverSelected = $(this).val();
+           driverIndex = module._getDriverIndexFromRelationshipToApplicantId($(this).attr("name"));
+           
+           for (index = 0; index < elementSuffix.length; index++) {
+               target = module._getAdpAndCRMDriversToHouseholdTargetSection(0, elementSuffix[index]);
+               $(target).append(module._constructAdpAndCRMDriverHouseholdEntryTemplate(driverIndex, driverName, elementSuffix[index], driverSelected));
+           }
+        });
+    };
+    
+    module._getAdpAndCRMDriversToHouseholdTargetSection = function(driverIndex, suffix) {
+        var selector = "input[" + module.escapeSpecialChars("name=drivers["+ driverIndex +"]."+ suffix)  + "]";
+        return $(selector).closest("div");
+    };
+    
+    module._constructAdpAndCRMDriverHouseholdEntryTemplate = function(driverIndex, driverName, suffix, selected) {
+        var displayStyle = "", template;
+        if(selected === "false") {
+            displayStyle = "style='display: none;'";
+        }
+            
+        template = "<label class='checkbox input-edit vertical' "+ displayStyle + " for='drivers[" + driverIndex + "]."+ suffix + "'>" +
+                          "<input name='drivers[" + driverIndex + "]." + suffix + "' id='drivers[" + driverIndex + "]." + suffix + "' type='checkbox' value='"+ selected +"'>" + driverName +
+                   "</label>";
+        return template;
+    };    
+
+    module._cancelLoadADPAndCRMDrivers = function() {
+        module._afterLoadADPAndCRMDrivers();
+    };
+
+    module._afterLoadADPAndCRMDrivers = function() {
+        $(addDriverButtonSelector).prop('disabled', false);
+        $(addDriverButtonSelector).attr('disabled', false);
+        var $adpDrivereRow = $('#adpDriverLoading');
+        sfx.updatingIndicator.hide($adpDrivereRow);
+
+    };
+
+    module._updateReadOnlyDriverLicense = function(editModuleId) {
+        var inputElementId, inputElement, readOnlyElement, readOnlyElementIdx, updatedValue;
+        readOnlyElementIdx = editModuleId.split('_')[1];
+        inputElementId = 'licenseNumberEntered_' + readOnlyElementIdx;
+        inputElement = $('input[type="text"]').filter("[id*='" + inputElementId + "']");
+        readOnlyElement = $(readOnlyDlnElementSelectorPrefix + 'licenseNumberEntered_' + readOnlyElementIdx);
+        updatedValue = $(inputElement).val();
+        if (inputElement !== undefined && readOnlyElement !== undefined) {
+            readOnlyElement.text(updatedValue);
+        }
+    };
+
+    module._updateReadOnlySSN = function(editmoduleid) {
+        var inputelementid, inputelement, readOnlyElement, readonlyidx, updatedvalue;
+        readonlyidx = editmoduleid.split('_')[1];
+        inputelementid = 'drivers[' + readonlyidx + '].operator.ssn';
+        inputelement = $('input[type="text"]').filter("[id*='" + inputelementid + "']");
+        readOnlyElement = $(readOnlyDlnElementSelectorPrefix + 'ssnEntered_' + readonlyidx);
+        updatedvalue = $(inputelement).val();
+        if (inputelement !== undefined && readOnlyElement !== undefined) {
+            readOnlyElement.text(updatedvalue.substring(0, 3) + "-" + updatedvalue.substring(3, 5) + "-" + updatedvalue.substring(5, 9));
+        }
+    };
+
+    module._populateReadOnlyEditModuleElement = function(event) {
+        var editmoduleid = event.target.id;
+        if (editmoduleid.indexOf("ssnEditModule") >= 0) {
+            module._updateReadOnlySSN(editmoduleid);
+        }
+        if (editmoduleid.indexOf("dlnEditModule") >= 0) {
+            module._updateReadOnlyDriverLicense(editmoduleid);
+        }
+    };
+  //--------------------------------Start-----------------------------
+    module._bindAddDriverButton = function() {
+        $('#addDriverButton').click(function(e) {
+            if ($('#addDriverButton').prop('disabled')) {
+            	e.preventDefault();
+            	event.stopPropagation();
+            	event.stopImmediatePropagation();
+                return ;
+            }
+            var countOfDriversSelectedForQuote = module._getSelectedDriverCount();
+            if (countOfDriversSelectedForQuote >= maxNumOfDriversToQuote) {
+                $(maxDriversSelectedForQuoteModalSelector).modal();
+                return;
+            }
+            $('#driverAdded').prop('value', true);
+            $(driverActionSelector).prop('name', 'addDriver');
+            $(driverActionSelector).prop('value', 'true');
+            //$(this).parents('form').submit();
+            requestUrl = aqp.utils.prependContextRootAndServletPath("driver/addDriver");
+            
+            var ajaxSettings = {
+                    'type' : 'POST',
+                    'contentType' : 'application/x-www-form-urlencoded',
+                    'async' : false,
+                    'dataType' : 'html',
+                    'timeout' : 10000
+            };
+            var data = $(this).parents('form').serializeArray();
+            console.log("Final Data post to server1 == "+$.param(data)) ;
+            console.log("Final Data post to server3 == "+$(this).parents('form').serialize());
+            
+            data.forEach(function (item) {
+            	  if (item.name.endsWith('.operator.dob')) {
+            	    item.value = convertDateToyyyymmdd(item.value);
+            	  }
+            	  if(item.name.endsWith('.operator.ssnUserEntered')){
+            		  item.value = item.value.replace('-','').replace('-','');
+            	  }
+            	});
+            
+            //$('input[type="text"]').filter("[id*='operator.ssn']").val();
+           // $('input[type="text"]').filter("[id*='.operator.dob']").val();
+            
+          
+          module._callAjax(requestUrl, $.param(data),ajaxSettings, module._handleAddDriverSuccess, module._handleAddDriverFailure);
+        });
+    };
+    
+    module._handleAddDriverSuccess = function (response){
+     
+        var addDriverSectionContainer = $('#driversSectionContainer');
+        //alert(response);
+        $(addDriverSectionContainer).html(response).trigger("sfx-init").trigger("sfx-load");
+        module._bindEvents();
+        };
+        module._handleAddDriverFailure = function(response,driverIndex){
+        	alert("failed");
+        }
+//------------------------End------------------------------------------
+
+    module._bindMaxDriversSelectedModalSendToAgentButton = function() {
+        $('#maxDriversSelectedForQuoteSendToAgentButton').click(function() {
+            $(maxDriversSelectedForQuoteModalSelector).modal('hide');
+            module._sendToAgent();
+        });
+    };
+
+    module._bindMaxDriversSelectedModalOKButton = function() {
+        $('#maxDriversSelectedForQuoteOKButton').click(function() {
+            $(maxDriversSelectedForQuoteModalSelector).modal('hide');
+        });
+    };
+
+    module._bindMaxDriversSelectedModalCancelLink = function() {
+        $('#maxDriversSelectedForQuoteCancelLink').click(function() {
+            $(maxDriversSelectedForQuoteModalSelector).modal('hide');
+        });
+    };
+    module._bindDeleteDriverModalContinueButton = function() {
+        $('#deleteDriverContinueButton').click(function() {
+            $(deleteDriverModalSelector).modal('hide');
+            aqp.form.append("<input type='hidden' id='continue' name='deleteDriver' value='true'>").action(
+                    module.submitAction).submit();
+        });
+    };
+
+    module._bindDeleteDriverModalCancelLink = function() {
+        $('#deleteDriverCancelLink').click(function() {
+            $('#driverIndexDeleted').prop('value', '');
+            $(deleteDriverModalSelector).modal('hide');
+        });
+    };
+    module._bindAdpAndAdditionalDriverSelection = function() {
+        $('input[type="checkbox"]').filter("[id^='driverSelected_']").click(function() {
+            var ids, elementIndex, requestUrl, index, ajaxSettings, warningDiv, collectionId;
+            ids = $(this).attr('id').split('_');
+            elementIndex = ids[1];
+            collectionId = ids[2];
+            
+            warningDiv = $('#showDriverQuestionWarningDiv' + elementIndex);
+            if (!warningDiv.hasClass("hidden")){
+                warningDiv.addClass("hidden");
+            }
+            
+          if(($(this).prop("checked")) && $("#driverQuestionContainer"+ elementIndex).hasClass("isDriverLoaded_false")){
+            requestUrl = aqp.utils.prependContextRootAndServletPath('driver/updateOnSelectDriverCheckbox/' + elementIndex + '/' + collectionId);
+            ajaxSettings = {
+                    'type' : 'POST',
+                    'contentType' : 'application/json',
+                    'async' : false,
+                    'dataType' : 'html',
+                    'timeout' : 10000
+            };
+            module._callAjaxWithDriverIndex(requestUrl, null, ajaxSettings, module._handleSuccessOnSelectedDriver, module._handleFailureOnSelectDriver, this);
+          }else{
+            module._toggleDriverDisplay(this);
+            module._toggleHideShowQuestion(elementIndex, $(this).prop("checked"), collectionId);
+            module._toggleDriverSelection(elementIndex, $(this).prop("checked"));
+          }
+        });
+    };
+
+    module._handleSuccessOnSelectedDriver = function(response, _this) {
+        var ids, elementIndex, driverQuestionContainerDiv;
+        ids = $(_this).attr('id').split('_');
+        elementIndex = ids[1];
+        driverQuestionContainerDiv = $('#driverQuestionContainer' + elementIndex);
+        $(driverQuestionContainerDiv).html(response).trigger('sfx-init').trigger('sfx-load');
+        module._bindEvents();
+        module._toggleDriverSelection(elementIndex, $(_this).prop("checked"));
+        $("#driverQuestionContainer" + elementIndex).toggleClass("isDriverLoaded_false");
+        
+        module._toggleDriverDisplay(_this);
+    };
+
+    module._handleFailureOnSelectDriver = function(jqXHR, status, message, _this) {
+        var ids, elementIndex, warningDiv;
+        ids = $(_this).attr('id').split('_');
+        elementIndex = ids[1];
+        $(_this).removeAttr('checked');
+        warningDiv = $('#showDriverQuestionWarningDiv' + elementIndex);
+        if (warningDiv.hasClass("hidden")) {
+            warningDiv.removeClass("hidden");
+        }
+    };
+    
+    module._bindDriverLicense = function() {
+        $('input[type="text"]').filter("[id*='licenseNumber']").blur(function() {
+               
+        module._onUpdateDriverLicenseNumber(this);
+      
+
+              
+        });
+    };
+    
+    module._bindVehicleAssigned = function() {
+        if ($('#state').val() === 'MI') {
+            $('input[type="radio"]').filter("[id*='vehicleAssigned_input']").change(function() {
+                module._onUpdateVehicleAssigned($(this).filter(':checked'));
+            });
+        }
+    };
+
+    module._bindSSN = function() {
+        $('input[type="text"]').filter("[id*='operator.ssn']").keyup(function() {
+            module._updateReadOnlySSN(this);
+        });
+    };
+
+    module._bindDriverRelationshipToApplicant = function() {
+        var ids, elementRowId, elementRow;
+        $('select').filter("[id*='driverRelationshipToApplicant_input']").change(function() {
+            module._onUpdateRelationshipToApplicant(this);
+            module._onRefreshMaritalStatus(this);
+
+            ids = module._getDriverIndexFromRelationshipToApplicantId($(this).attr('id'));
+            elementRowId = 'drivers[' + ids + '].operator.maritalStatus';
+            elementRowId = module.escapeSpecialChars(elementRowId);
+            elementRow = $('[id="' + elementRowId + '"]');
+            if (module.shouldHideMaritalStatus(this.value)) {
+                elementRow.hide();
+            } else {
+                elementRow.show();
+            }
+        });
+    };
+
+    module._bindMemberOfMilitaryWithAccessToVeh = function() {
+        $('input[type=radio]').filter("[name*='memberOfMilitary']").change(function() {
+            module._onUpdateMemberOfMilitaryWithAccessToVeh($(this).filter(':checked'));
+        });
+    };
+
+    module._bindSendToAgentLink = function() {
+        $(sendToAgentLinkSelector).on("click", function() {
+            return module._sendToAgent();
+        });
+    };
+
+    module._bindEditModuleSave = function() {
+        $(document).bind("sfx-editModule-save", function(event) {
+            module._populateReadOnlyEditModuleElement(event);
+        });
+    };
+
+    module._bindOwnedResidenceLivedInChanged = function() {
+        // Only for Florida (:
+        if ('true' === $('#dependentOwnedResidenceLivedInAdditionalQuestions').val()) {
+            $('#ownedResidenceLivedIn').change(function() {
+                module._hideShowOwnedResidenceLivedInDiscount();
+                module._onUpdateOwnedResidenceLivedIn();
+            });
+        }
+    };
+
+    module._hideShowOwnedResidenceLivedInDiscount = function() {
+        if ($('#ownedResidenceLivedIn input:checked').val() === 'true') {
+            $('#ownedResidenceLivedInPotentialDiscount').show();
+            $('#ownedResidencePotentialDiscountContainer').show();
+        } else {
+            $('#ownedResidenceLivedInPotentialDiscount').hide();
+            $('#ownedResidencePotentialDiscountContainer').hide();
+        }
+    };
+
+    module._bindEveryDriverWearSeatBeltsChanged = function() {
+        // Only for Michigan
+        $('#everyDriverWearSeatBelts').change(function() {
+            module._hideShowEveryDriverWearSeatBeltsPotentialDiscount();
+        });
+    };
+
+    module._hideShowEveryDriverWearSeatBeltsPotentialDiscount = function() {
+        if ($('#everyDriverWearSeatBelts input:checked').val() === 'true') {
+            $('#everyDriverWearSeatBeltsPotentialDiscountContainer').show();
+        } else {
+            $('#everyDriverWearSeatBeltsPotentialDiscountContainer').hide();
+        }
+    };
+
+    module._bindEvents = function() {
+        module._onBeforeSendAndCompleteBinds();
+        module._bindAddDriverButton();
+        module._bindDeleteDriverModalContinueButton();
+        module._bindDeleteDriverModalCancelLink();
+        module._bindMaxDriversSelectedModalSendToAgentButton();
+        module._bindMaxDriversSelectedModalOKButton();
+        module._bindMaxDriversSelectedModalCancelLink();
+        module._bindSendToAgentLink();
+        module._bindAdpAndAdditionalDriverSelection();
+        module._bindDriverLicense();
+        module._bindVehicleAssigned();
+        module._bindDriverRelationshipToApplicant();
+        module._bindAgeReceivedLicenseLostFocus();
+        module._bindWhenLicensedSelection();
+        module._bindEditModuleSave();
+        module._bindEditModuleButton();
+        module._bindDOBChanges();
+        aqp.driverLicenseCommon.init();
+        module._bindEditModuleCancelButton();
+        module._bindEditModuleSaveButton();
+        module._bindEditModuleDLSSNSaveButton();
+        module._removeElementsForReadOnlyMode();
+        module._bindOwnedResidenceLivedInChanged();
+        module._bindMemberOfMilitaryWithAccessToVeh();
+        module._bindDriverSelection();
+        module._bindVehicleAssignmentQuestionEvents();
+        module._bindDriverToHouseHoldQuestions();
+        module._bindEveryDriverWearSeatBeltsChanged();
+        module._bindhideShowDriverQuestion();
+    };
+    
+    module._bindDriverToHouseHoldQuestions = function() {
+        var elementSuffix = ["operator.fraudIndicator","operator.seatBelt","oprExtension.lowIncomeDiscountIndicator","operator.driverHasDependentsIndicator"];
+        $('input[type="checkbox"]').filter("[id^='driverSelected_']").each(function() {
+            module._hideHouseHoldDriverWhenDriverIsNotSelectedOrDriverNameIsBlank(elementSuffix, $(this));
+        });
+        
+        $('input[type="checkbox"]').filter("[id^='driverSelected_']").click(function() {            
+            module._hideHouseHoldDriverWhenDriverIsNotSelectedOrDriverNameIsBlank(elementSuffix, $(this));
+            module._populateNameInHouseHoldCheckBoxs(module._getDriverIndexFromRelationshipToApplicantId($(this).attr('id')),elementSuffix);
+        });
+        
+        $("input[name$='operator.person.firstName']").on("focusout input", function() {
+            module._populateNameInHouseHoldCheckBoxs(module._getDriverIndexFromRelationshipToApplicantId($(this).attr('id')),elementSuffix);
+            module._toggleVisiblityOnHouseHoldDriverNameContent(module._getDriverIndexFromRelationshipToApplicantId($(this).attr('id')),elementSuffix);
+        });
+        
+        $("input[name$='operator.person.lastName']").on("focusout input", function() {
+            module._populateNameInHouseHoldCheckBoxs(module._getDriverIndexFromRelationshipToApplicantId($(this).attr('id')),elementSuffix);
+            module._toggleVisiblityOnHouseHoldDriverNameContent(module._getDriverIndexFromRelationshipToApplicantId($(this).attr('id')),elementSuffix);
+        });
+        
+        $("input[name$='operator.person.middleName']").on("focusout input", function() {
+            module._populateNameInHouseHoldCheckBoxs(module._getDriverIndexFromRelationshipToApplicantId($(this).attr('id')),elementSuffix);
+            module._toggleVisiblityOnHouseHoldDriverNameContent(module._getDriverIndexFromRelationshipToApplicantId($(this).attr('id')),elementSuffix);
+        });
+    };
+   
+    module._populateNameInHouseHoldCheckBoxs = function(driverIndex, elementSuffix) {
+       var elementSelector, label, index;
+       
+       for(index = 0; index < elementSuffix.length; index++) {
+           elementSelector = "drivers[" + driverIndex + "]." + elementSuffix[index];
+           elementSelector = "label[for='"+ module.escapeSpecialChars(elementSelector) + "']";
+           label = $(elementSelector);
+           module.replaceTextNodesInLabel(label, driverIndex);
+       }
+   };
+      
+   module.replaceTextNodesInLabel = function(label, driverIndex) {
+       label.contents().filter(function() {
+           if(this.nodeType === Node.TEXT_NODE) {
+               return this;
+           }
+       }).remove();
+       
+       $(label).append(module._getDriverNameByDriverIndex(driverIndex));
+   };
+   
+   module._getDriverNameByDriverIndex = function(driverIndex) {
+       var firstName, middleName, lastName;
+       
+       firstName = module._retrieveAddtlDriverNamePropertyFromPage(driverIndex, 'firstName');
+       middleName = module._retrieveAddtlDriverNamePropertyFromPage(driverIndex, 'middleName');
+       lastName = module._retrieveAddtlDriverNamePropertyFromPage(driverIndex, 'lastName');
+       
+       return firstName + " " + middleName + " " + lastName;
+   };
+   
+   module._toggleVisiblityOnHouseHoldDriverNameContent = function(driverIndex,elementSuffix) {
+       var index, elementSelector;
+       for(index = 0; index < elementSuffix.length; index++) {
+           elementSelector = "drivers[" + driverIndex + "]." + elementSuffix[index];
+           elementSelector = "input[id='"+ module.escapeSpecialChars(elementSelector) + "']";
+
+           if(module._getDriverNameByDriverIndex(driverIndex).trim() === "") {
+               $(elementSelector).parent().hide();
+           } else {
+               $(elementSelector).parent().show();
+           }
+       }
+   };
+   
+   module._hideHouseHoldDriverWhenDriverIsNotSelectedOrDriverNameIsBlank = function(elementSuffix, element) {
+       var elementSelector, index;
+
+       for(index = 0; index < elementSuffix.length; index++) {
+           elementSelector = "drivers[" + module._getDriverIndexFromRelationshipToApplicantId($(element).attr('name')) + "]." + elementSuffix[index];
+           elementSelector = "input[id='"+ module.escapeSpecialChars(elementSelector) + "']";
+
+           if(module._getDriverNameByDriverIndex(module._getDriverIndexFromRelationshipToApplicantId($(element).attr('name'))).trim() === "") {
+               $(elementSelector).parent().hide();
+           } else {
+               $(elementSelector).parent().toggle($(element).is(':checked'));
+           }
+       }
+   };    
+
+    module._bindEditModuleSaveButton = function() {
+        var saveLink, editModule;
+        $(document).on('click.sfx.editModule.save', ':button.edit-save-button', function(e) {
+            if (e.target === undefined) {
+                return;
+            }
+            saveLink = $(e.target);
+            editModule = saveLink.parents(".edit-module");
+
+            if (editModule.find('option:selected').val() === 'FR') {
+                editModule.find('span.input-read-only').first().text('Foreign');
+                editModule.find('select').css('margin-left', '-6px');
+            }
+        });
+    };
+
+    module._applyFocusToAdditionalDriverField = function() {
+        setTimeout(function() {
+            var i, firstName;
+            for (i = 1; i < 4; i++) {
+                firstName = $(additionalDriversAddedSectionPrefix + i).find('input[name*=firstName]');
+                if (!$(firstName).val() || $(firstName).val() === "") {
+                    if($(additionalDriversAddedSectionPrefix + i).offset() !== null) {
+                       $(window).scrollTop($(additionalDriversAddedSectionPrefix + i).offset().top);
+                    }
+					$(firstName).focus();
+                    return false;
+                }
+            }
+        }, 500);
+    };
+
+    module._setMaxLengthOnAgeReceivedLicense = function() {
+        $('div[id^=ageReceivedLicense] input').attr('maxlength', '2');
+    };
+
+    $(document).one('sfx-form-validation', driverFormSelector, function(event) {
+        event.validateRequiredFields = false;
+    });
+
+    module.init = function() {
+
+        module._bindEvents();
+        module._hideShowOwnedResidenceLivedInDiscount();
+        module._hideShowVehicleAssignedOnLoad();
+        module._hideShowWhenReceivedLicense();
+        module._loadADPAndCRMDrivers();
+        module._hideMaritalStatusForRelationshipToApplicantSpouseOnLoad();
+        module._applyFocusToAdditionalDriverField();
+        module.addIconTitle();
+        module.ssnFormatter();
+        module._setMaxLengthOnAgeReceivedLicense();
+        module.dobValidator();
+        $(document).submit(function() {
+            
+            //MI check for checkboxes realted to household questions  
+            //Checkboxes when hidden should not be enabled
+            $('input:disabled').each(function() {
+                var index, shouldBeEnabled = true , elementSuffix = ["operator.fraudIndicator","operator.seatBelt","oprExtension.lowIncomeDiscountIndicator","operator.driverHasDependentsIndicator","oprExtension.vehAssignUsageAtLeastTenPercent"];
+                
+                for(index = 0; index < elementSuffix.length; index++) {
+                   
+                    if ($(this).attr('name').endsWith(elementSuffix[index])){
+                        shouldBeEnabled = false;  
+                    }
+                }
+                
+                if (shouldBeEnabled){
+                    $(this).removeAttr('disabled');
+                }
+            });
+
+            $('.lowIncomeIndicatorSection').each(function() {
+                var areAnyRadioButttonsChecked = $(this).find('input[type=radio]:checked').length > 0;
+                $(this).find('input[type="hidden"]')
+                    .val('')
+                    .attr('disabled', areAnyRadioButttonsChecked);
+             });
+            
+            $("div.submitHiddenSelectValue select:disabled").removeAttr('disabled');
+        });
+        module._checkNeedForShowWhenReceivedLicense();
+    };
+        
+    module.dobValidator = function() {
+        var oldDateFunction = sfx.validation.validator.validatorMap['date'].validate, oldRangeFunction = sfx.validation.validator.validatorMap['daterange'].validate, argsDate;
+        argsDate = {
+            errorMessage : sfx.lang.messages.date
+        };
+        sfx.validation.validator.validatorMap['date'].validate = function(valueIn, args) {
+            if (valueIn === 'XX/XX/XXXX') {
+                return sfx.validation.validator.util.validResult();
+            } else {
+                return oldDateFunction(valueIn, argsDate);
+            }
+        };
+
+        sfx.validation.validator.validatorMap['daterange'].validate = function(valueIn, args) {
+            if (valueIn === 'XX/XX/XXXX') {
+                return sfx.validation.validator.util.validResult();
+            } else {
+                return oldRangeFunction(valueIn, args);
+            }
+        };
+    };
+
+    module.ssnFormatter = function() {
+        var value, readOnly;
+        sfx.formatting.formatter.formatterMap['ssn'].formatSSN = function(valueIn, args, addDashes) {
+            var v = "", ch, i = 0, len;
+            for (i = 0, len = valueIn.length; i < len; i++) {
+                ch = valueIn.charAt(i);
+                if (ch >= '0' && ch <= '9' || ch === 'X') {
+                    v += ch;
+                }
+                if (addDashes && (v.length === 3 || v.length === 6)) {
+                    v += "-";
+                }
+            }
+            return v;
+        };
+
+        $(".edit-module-content input[name*=ssn]").each(function() {
+            value = $(this).val();
+            if (value) {
+                value = value.replace(/-/g, '');
+                if (value.length === 4) {
+                    value = 'XXXXX' + value;
+                }
+            }
+
+            $(this).val(value);
+            readOnly = $(".input-read-only[data-name='" + module.escapeSpecialChars($(this).attr('name')) + "']");
+            readOnly.data('value', value);
+            readOnly.text(sfx.formatting.formatter.formatterMap['ssn'].format(value));
+        });
+    };
+
+    module._bindEditModuleCancelButton = function() {
+        var cancelLink, editModule;
+        $(document).on('click.sfx.editModule.cancel', 'a.edit-cancel-link', function(e) {
+            if (e.target === undefined) {
+                return;
+            }
+            cancelLink = $(e.target);
+            editModule = cancelLink.parents(".edit-module");
+            editModule.find('select').trigger('change');
+        });
+    };
+
+    module._bindEditModuleButton = function() {
+        // $('[id*="Edit_btn_input"]').click(function() {
+        var fieldname, editLink, editModule, input, parentNode;
+        $(document).on('click.sfx.editModule.edit', function(e) {
+            if (e.target === undefined) {
+                return;
+            }
+            editLink = $(e.target);
+            parentNode = $(e.target.parentNode);
+            if (!editLink.hasClass("btn-edit") && !parentNode.hasClass("btn-edit")) {
+                return;
+            }
+
+            editModule = editLink.parents(".edit-module");
+            input = editModule.find(".input-edit").first()[0];
+
+            fieldname = input.name;
+            module._editModuleBlankResponse(fieldname);
+
+        });
+    };
+
+    module._bindEditModuleDLSSNSaveButton = function() {
+        var fieldname, requestUrl, requestData, requestDataStr, saveLink, saveModule, input, editValue;
+        $(document).on('click.sfx.editModule.save', '.edit-save-button', function(e) {
+            if (e.target === undefined) {
+                return;
+            }
+            saveLink = $(e.target);
+            saveModule = saveLink.parents(".edit-module");
+            input = saveModule.find(".input-edit").first()[0];
+            if (input.classList.contains("error")){
+                return;
+            }
+            requestUrl = aqp.utils.prependContextRootAndServletPath("driver/onMaskFieldSave");
+            requestData = {
+                'fieldName' : input.name,
+                'fieldValue' : input.value
+            };
+            requestDataStr = JSON.stringify(requestData);
+
+            $.ajax({
+                'type' : 'POST',
+                'contentType' : 'application/json',
+                'async' : false,
+                'dataType' : 'json',
+                'timeout' : 2000,
+                'context' : requestDataStr,
+                'url' : requestUrl,
+                'data' : requestDataStr,
+                'success' : function(response) {
+                }
+            });
+        });
+    };
+
+    module._editModuleResponse = function(response, requestDataStr) {
+        var obj = JSON.parse(requestDataStr);
+        $('input[name="' + obj.fieldName + '"]').val(response.replace(/&#x20;/g, " "));
+    };
+
+    module._editModuleBlankResponse = function(fieldname) {
+        $('input[name="' + fieldname + '"]').val("");
+    };
+
+    module._bindDOBChanges = function() {
+        var fieldname, requestUrl, requestData, requestDataStr, input;
+        $("input[name*='operator.dob']").on("focusin", function(e) {
+            input = $(e.target);
+            if (input.val() !== 'XX/XX/XXXX') {
+                return;
+            }
+            if (input.val() !== "" || input.val() !== undefined) {
+                input.data('prevValue', input.val());
+            }
+            fieldname = input.attr('name');
+            if (module._isCustomerChannel()) {
+                module._editModuleBlankResponse(fieldname);
+                return;
+            }
+            requestUrl = aqp.utils.prependContextRootAndServletPath("driver/onMaskFieldEdit");
+            requestData = {
+                'fieldName' : fieldname
+            };
+            requestDataStr = JSON.stringify(requestData);
+
+            $.ajax({
+                'type' : 'POST',
+                'contentType' : 'application/json',
+                'async' : false,
+                'dataType' : 'json',
+                'timeout' : 2000,
+                'context' : requestDataStr,
+                'url' : requestUrl,
+                'data' : requestDataStr,
+                'success' : function(response) {
+                    module._editModuleResponse(response, requestDataStr);
+
+                },
+                'error' : function() {
+                    module._editModuleBlankResponse(requestDataStr);
+                }
+            });
+
+        });
+
+        $("input[name*='operator.dob']").on("focusout", function(e) {
+            input = $(e.target);
+            if ((input.val() === "" || input.val() === undefined) && input.data('prevValue') && input.data('prevValue') === 'XX/XX/XXXX') {
+                input.val('XX/XX/XXXX');
+            } else {
+                input.data('prevValue', input.val());
+            }
+            driverNumForLic = module._getIndexFromAttribute($(this).attr('id'));
+            module._determineHideShowWhenReceivedLicense();
+            module._hideShowLowIncomePremiumAdjustmentQuestion(driverNumForLic);
+            module._removeOriginalLicenseDateErrorMessage(driverNumForLic);
+        });
+
+    };
+
+    module._removeElementsForReadOnlyMode = function() {
+        var readOnlyIndicator = $('#readOnlyIndicator');
+
+        if (readOnlyIndicator.data('read-only')) {
+            // This will remove the add driver button
+            $('.btn-add').remove();
+            // This will remove all delete buttons for manually added drivers
+            $('.driver-delete-icon').remove();
+            // This will remove the save and continue later link
+            $('#saveContinueLater').remove();
+            // This will remove the send to agent link
+            $('#sendToAgent').remove();
+            // This will remove the max total added driver warning message
+            $('#addDriverWarningAlert').remove();
+            // This will disable the checkboxes on the page
+            $('a.btn-edit').text('View');
+            $('.edit-save-button').remove();
+            $("input[type='checkbox']").prop({
+                disabled : true
+            });
+        }
+    };
+
+    module._hideShowMilitary = function(index) {
+        if ($('#memberOfMilitary' + index + ' input[id*=input_0]').is(':checked')) {
+            return true;
+        } else {
+            $('#memberOfMilitaryWithAccessToVeh' + index + ' input[id*=input_0]').prop('checked', false);
+            $('#memberOfMilitaryWithAccessToVeh' + index + ' input[id*=input_1]').prop('checked', false);
+            return false;
+        }
+    };
+
+    module.shouldHideMaritalStatus = function(relationshipToApplicant) {
+        if (relationshipToApplicant.toLowerCase() === 'spouse' || relationshipToApplicant.toLowerCase() === 'domestic partner' ||
+                relationshipToApplicant.toLowerCase() === 'civil union') {
+            return true;
+        } else {
+            return false;
+        }
+    };
+
+    /**
+	 * Determines if the HideShow for FL should be visible. The HideShow for FL
+	 * is only visible after the user selects an answer to "Does any member of
+	 * your household own a residence they live in at least part of the time?".
+	 */
+    module.shouldShowHideShowOwnedResidenceLivedInAdditionalQuestions = function() {
+        return $('input:radio[name=ownedResidenceLivedIn]').filter(':checked').length !== 0;
+    };
+    
+    module._retrieveAddtlDriverNamePropertyFromPage = function (driverIndex, requiredName){
+        var nameId, name;
+        // Additional Drivers (added and ADP)
+        nameId = "sfx_drivers[" + driverIndex + "].operator.person."+requiredName+"_input";
+        name = $('input[id="' + module.escapeSpecialChars(nameId) + '"]').val();
+        if (!name){
+            // Additional Drivers (CRM)
+            nameId = "sfx_drivers[" + driverIndex + "].operator.person."+requiredName+"_row";
+            name = $('div[id="' + module.escapeSpecialChars(nameId) + '"]').children()[1];
+            name = name ? name.textContent : null;
+        }
+        return name ? $.trim(name) : "";
+    };
+    
+    module._retrieveAddtlDriverSuffixFromPage = function (driverIndex){
+        var nameId, name;
+        // Additional Drivers (added and ADP)
+        nameId = "sfx_drivers[" + driverIndex + "].operator.person."+"suffix"+"_input";
+        name = $('select[id="' + module.escapeSpecialChars(nameId) + '"]').val();
+        if (!name){
+            // Additional Drivers (CRM)
+            nameId = "sfx_drivers[" + driverIndex + "].operator.person."+"suffix"+"_row";
+            name = $('div[id="' + module.escapeSpecialChars(nameId) + '"]').children()[1];
+            name = name ? name.textContent : null;
+        }
+        return name ? $.trim(name) : "";
+    };
+    
+    module._hideShowLowIncomePremiumAdjustmentQuestion = function(driverNumForLic) {
+        if(driverNumForLic === undefined || driverNumForLic===""){ 
+           return false;
+         }
+        var requestUrl, requestData, ajaxSettings, operContainerSelector, operContainerId;
+         requestUrl = aqp.utils.prependContextRootAndServletPath("driver/lowIncomeIndicator");
+         
+         operContainerSelector = '#operContainerId[' + driverNumForLic + ']';
+         operContainerSelector = module.escapeSpecialChars(operContainerSelector);
+         operContainerId = $(operContainerSelector).val();
+         
+         requestData = {
+          'identifier' : operContainerId
+         };
+         $.ajax({
+         'type' : 'GET',
+         'contentType' : 'application/json',
+         'async' : false,
+         'dataType' : 'json',
+         'timeout' : 2000,
+         'context' : requestData,
+         'url' : requestUrl,
+         'data' : requestData,
+         'success' : function(response) {
+             module._handleSuccessLowIncomeIndicaotrResponse(response);
+         },
+         'error' : function() {
+             $("input[name='drivers[" + driverNumForLic + "].operator.lowIncomeIndicator']").removeAttr('checked');
+             $("#lowIncomeIndicatorHideShowId" + driverNumForLic).addClass('hidden');
+             return false;
+         }
+     });
+    };
+
+    module._handleSuccessLowIncomeIndicaotrResponse = function(response){
+        var name;
+        if (response) {
+            $("#lowIncomeIndicatorHideShowId" + driverNumForLic).removeClass('hidden');
+            $("#lowIncomeIndicatorHideShowId" + driverNumForLic).find('div').removeClass('conditional-fieldset-heading');
+            return true;
+        }else{
+            $("input[name='drivers[" + driverNumForLic + "].operator.lowIncomeIndicator']").removeAttr('checked');
+            $("#lowIncomeIndicatorHideShowId" + driverNumForLic).addClass('hidden');
+            return false;
+        }
+    };
+
+	/**
+     * 24947 bind event to make Ajax call ageReceivedLicense only when a driver
+     * is selected
+     */
+    module._bindDriverSelection = function() {
+        var shouldDisplay;
+        $('input[type="checkbox"]').filter("[id^='driverSelected']").change(function() {
+            if (this.checked) {
+                module._determineHideShowWhenReceivedLicense();
+                $(this).parent().addClass("checked");
+                module._onSelectDriver(this);
+            } else {
+                $(this).parent().removeClass("checked");
+                module._onUnselectDriver(this);
+            }
+        });
+    };
+    
+    /**
+     * 24947 Needed to display date licensed question during navigation
+     */
+    module._checkNeedForShowWhenReceivedLicense = function(){
+        var additionalDriverCheckBoxes, i;
+        additionalDriverCheckBoxes = $('input[id^=driverSelected]:checked');
+        if(additionalDriverCheckBoxes.length > 0){
+           for (i = 0; i < additionalDriverCheckBoxes.length; i++){            
+                driverNumForLic = module._getIndexFromAttribute($(additionalDriverCheckBoxes[i]).attr('name'));
+                module._determineHideShowWhenReceivedLicense();   
+            }
+        }
+    };
+    
+    
+    module.hideShowEveryDriverWearSeatBelt = function() {
+        var result, potentialDiscountHideShow; 
+        
+        result = $('#everyDriverWearSeatBelts [value=true]').attr('checked') === 'checked';
+        
+        if(result) {
+            potentialDiscountHideShow = $('#everyDriverWearSeatBeltsPotentialDiscountHideShow');
+            
+            $(potentialDiscountHideShow).find("hr, div").each( function(){
+                if($(this).hasClass('divider')) {
+                    $(this).hide();
+                }
+                if($(this).hasClass('conditional-fieldset-heading')) {
+                    $(this).hide();
+                }
+            }); 
+        }
+        return result;
+    };
+    
+    // Start for Driver Vehicle Assignment for ADP Drivers at Household Level (CA)
+    module._onSelectDriver = function(element) {
+        var hideAllVehicleAssigned,shouldDisplay,driverIndex , requestUrl, requestData, ajaxSettings,vehicleAssigned, vehicleAssignedSelector,countOfDriversSelectedForQuote,operContainerSelector,operContainerId,operExtContainerSelector,operExtContainerId;
+
+        shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+        if (shouldDisplay) {
+           countOfDriversSelectedForQuote = module._getSelectedDriverCount();
+           if (countOfDriversSelectedForQuote <= maxNumOfDriversToQuote) {
+       
+            driverIndex = module._getIndexFromAttribute($(element).attr('name'));
+            operContainerSelector = '#operContainerId[' + driverIndex + ']';
+            operContainerSelector = module.escapeSpecialChars(operContainerSelector);
+            operContainerId = $(operContainerSelector).val();
+          
+            operExtContainerSelector = '#operExtContainerId[' + driverIndex + ']';
+            operExtContainerSelector = module.escapeSpecialChars(operExtContainerSelector);
+            operExtContainerId = $(operExtContainerSelector).val();
+
+            hideAllVehicleAssigned = false;
+            
+            requestUrl = aqp.utils.prependContextRootAndServletPath("driver/selectDriver");
+            requestData = {
+              'driverIndex' : driverIndex,
+              'operContainerId' : operContainerId,
+              'operExtContainerId' : operExtContainerId,
+              'vehicleAssigned' : vehicleAssigned,
+              'hideAllVehicleAssigned' : hideAllVehicleAssigned
+              
+            };
+            requestData = JSON.stringify(requestData);
+            ajaxSettings = {
+              'type' : 'POST',
+              'contentType' : 'application/json',
+              'async' : false,
+              'dataType' : 'html',
+              'timeout' : 2000
+            };
+            module._callAjaxWithDriverIndex(requestUrl, requestData, ajaxSettings, module._handleOnSelectDriver, null,driverIndex);
+            $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').trigger("sfx-init").trigger("sfx-load");
+           }
+        }
+    };
+    
+
+  module._handleOnSelectDriver = function(allowedValues,driverIndex,hideAllVehicleAssigned) {
+        
+        var numSelectedVehicles,numSelectedLicensedDrivers,vehAssignedDivId0,vehAssignedDivIdN,primaryApplicantFullName, showOrHideEntireQuestion,dataAction,vehDivId,shouldHideQuestion,shouldDisplay,i,vehAssignedHouseholdLevelDivId,vehAssignedHouseholdLevelDivId0,myObj,el;    
+        
+        shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+        if (shouldDisplay) {
+            
+           module._onSelectShowHideDriverAssignmentHouseholdLevel(allowedValues,driverIndex);
+          
+        }
+     
+     
+    };
+    
+
+    module._onUnselectDriver = function(element) {
+        var shouldHideQuestion,shouldDisplay, driverIndex , requestUrl, requestData, ajaxSettings,vehicleAssigned, vehicleAssignedSelector,operExtContainerSelector,operExtContainerId;
+       
+          shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+        if (shouldDisplay) {   
+        
+          shouldHideQuestion = $('#hideVehicleAssignedHouseholdLevelQuestion').val();
+          driverIndex = module._getIndexFromAttribute($(element).attr('name'));
+        
+          operExtContainerSelector = '#operExtContainerId[' + driverIndex + ']';
+          operExtContainerSelector = module.escapeSpecialChars(operExtContainerSelector);
+          operExtContainerId = $(operExtContainerSelector).val();
+        
+          requestUrl = aqp.utils.prependContextRootAndServletPath("driver/unselectDriver");
+          requestData = {
+               'driverIndex' : driverIndex
+          };
+          requestData = JSON.stringify(requestData);
+          ajaxSettings = {
+            'type' : 'POST',
+            'contentType' : 'application/json',
+            'async' : false,
+            'dataType' : 'html',
+            'timeout' : 2000
+          };
+         module._callAjaxWithDriverIndex(requestUrl, requestData, ajaxSettings, module._handleOnUnselectDriver, null,driverIndex);
+       }
+    };
+    
+    module._handleOnUnselectDriver = function(allowedValues,driverIndex) {    
+        
+        module._showHideDriverAssignmentQuestionHouseholdLevel();
+ 
+    };
+    
+    module._getNumSelectedLicensedDrivers = function() {
+        var driverSelected,driverLicenseNumberSelector,numSelectedLicensedDrivers,additionalDriverCheckBoxes, i;
+        
+        numSelectedLicensedDrivers = 0;
+          
+         // for primary
+        if (module._isCustomerChannel()) {
+            driverLicenseNumberSelector = "drivers[0].operator.operatorLicense.driverLicense.licenseNumberUserEntered";
+        } else { 
+            
+            driverLicenseNumberSelector = "drivers[0].operator.operatorLicense.driverLicense.licenseNumberSystem";
+        }
+        
+        numSelectedLicensedDrivers = module._incrementForSelectedLicensedDrivers(driverLicenseNumberSelector,numSelectedLicensedDrivers);
+        
+        additionalDriverCheckBoxes = $('input[id^=driverSelected]');
+        if(additionalDriverCheckBoxes.length > 0) {
+           
+                for (i = 1; i <= additionalDriverCheckBoxes.length; i++) { 
+                 driverSelected = $('input[id^=driverSelected_' + i + ']:checked');
+                 if ($(driverSelected).prop('checked')) {
+                     if (module._isCustomerChannel()) {
+                         driverLicenseNumberSelector = "drivers[" + i + "].operator.operatorLicense.driverLicense.licenseNumberUserEntered";
+                     } else {
+                         driverLicenseNumberSelector = "drivers[" + i + "].operator.operatorLicense.driverLicense.licenseNumberSystem";
+                     }
+                     
+                     numSelectedLicensedDrivers = module._incrementForSelectedLicensedDrivers(driverLicenseNumberSelector,numSelectedLicensedDrivers);
+                         
+                 } 
+                } 
+            } 
+ 
+       return numSelectedLicensedDrivers;
+    };
+    
+
+    module._incrementForSelectedLicensedDrivers = function(driverLicenseNumberSelector,numSelectedLicensedDrivers) {
+    
+        var driverLicenseNumber,loweredValue;
+
+        driverLicenseNumber = $('input[type=text]').filter("[name='" + driverLicenseNumberSelector + "']").val();
+        
+        if ((driverLicenseNumber !== undefined) && (driverLicenseNumber !== null))  {
+            loweredValue = driverLicenseNumber.toLowerCase();
+            if ((loweredValue !== driverLicValuePermit) && (loweredValue !== driverLicValueUnLicensed)) {
+                numSelectedLicensedDrivers++;
+            } 
+        } else {
+            // if for some reason drivers license number doesn't appear on the page
+            numSelectedLicensedDrivers++;
+        } 
+
+        return numSelectedLicensedDrivers;
+    };
+     
+    
+    module._isDriverPermitOrUnlicensed = function(driverIndex) {
+        var loweredValue,driverLicenseNumberSelector,driverLicenseNumber, i;
+        
+        i = driverIndex;
+        
+        if (module._isCustomerChannel()) {
+          driverLicenseNumberSelector = "drivers[" + i + "].operator.operatorLicense.driverLicense.licenseNumberUserEntered";
+         
+        } else {
+          driverLicenseNumberSelector = "drivers[" + i + "].operator.operatorLicense.driverLicense.licenseNumberSystem";
+         }
+        
+        driverLicenseNumberSelector = module.escapeSpecialChars(driverLicenseNumberSelector);
+        driverLicenseNumber = $('input[type=text]').filter("[name='" + driverLicenseNumberSelector + "']").val();
+      
+        if ((driverLicenseNumber !== undefined) && (driverLicenseNumber !== null))  {
+            loweredValue = driverLicenseNumber.toLowerCase();  
+            if ((loweredValue === driverLicValuePermit) || (loweredValue === driverLicValueUnLicensed)) {
+                return true;
+            } else {
+                return false;
+            }
+        } else  {
+            return false;
+        }
+    };
+    
+    
+    module._onUpdateDriverLicenseShowHideDriverAssignmentHouseholdLevel = function(driverIndex) {
+        var vehAssignedHouseholdLevelDivId, shouldDisplay, isPermitOrUnlicensed,numSelectedLicensedDrivers,numSelectedVehicles,numSelectedVehiclesInt;
+        
+      
+        shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+        if (shouldDisplay) {
+      
+            module._showHideDriverAssignmentQuestionHouseholdLevel();
+
+        }
+    };
+    
+    module._onSelectShowHideDriverAssignmentHouseholdLevel = function(allowedValues,driverIndex) { 
+        var vehAssignedDivId0,vehAssignedDivIdN,vehAssignedHouseholdLevelDivId,
+        vehAssignedHouseholdLevelDivId0, shouldDisplay;
+      
+        shouldDisplay = $('#shouldDisplayVehicleAssignedQuestionAtHouseholdLevel').val();
+        if (shouldDisplay) {
+            
+            vehAssignedDivId0 = $(allowedValues).filter('#vehicleAssignedAllowedValues0');
+            
+            vehAssignedDivIdN = $(allowedValues).filter('#vehicleAssignedAllowedValues' + driverIndex);
+   
+             
+            vehAssignedHouseholdLevelDivId = $('#vehicleAssignedProperty' + driverIndex);
+            vehAssignedHouseholdLevelDivId.html(vehAssignedDivIdN);
+            module._displayVehicleAssignmentName(driverIndex);
+   
+            vehAssignedHouseholdLevelDivId0 = $('#vehicleAssignedProperty0');
+            vehAssignedHouseholdLevelDivId0.html(vehAssignedDivId0);
+            
+            module._showHideDriverAssignmentQuestionHouseholdLevel();
+        }
+    };
+    
+    
+    module._showHideDriverAssignmentQuestionHouseholdLevel = function() {
+        var numSelectedLicensedDrivers,numSelectedVehicles,numSelectedVehiclesInt,isPrimaryPermitOrUnlicensed,
+        primaryDriverVehicleAssignmentOptionValues = [];
+        
+        numSelectedLicensedDrivers = module._getNumSelectedLicensedDrivers();
+        numSelectedVehicles = $('#numSelectedVehicles').val();
+        numSelectedVehiclesInt = parseInt(numSelectedVehicles,10);
+        
+
+        $('#vehicleAssignedAllowedValues0 option').each(function() {
+            primaryDriverVehicleAssignmentOptionValues.push($(this).val());
+        });
+
+      
+        // primaryDriverVehicleAssignmentOptionValues length of 0 ocurrs when all vehicles are antiques
+        if (((numSelectedLicensedDrivers <= 1)  &&  (numSelectedVehiclesInt <= 1)) || (primaryDriverVehicleAssignmentOptionValues.length === 0)) {
+            
+            
+            $('#vehicleAssignedQuestion').find('fieldset').find('legend').hide();
+            $('#vehicleAssignedProperty0').hide();
+            module._showHideNonPrimaryDriverAssignmentHouseholdLevel(false);
+           
+           
+           
+        } else {
+            
+            isPrimaryPermitOrUnlicensed = module._isDriverPermitOrUnlicensed(0);
+            
+            if (!isPrimaryPermitOrUnlicensed) {
+                $('#vehicleAssignedQuestion').find('fieldset').find('legend').show();
+                $('#vehicleAssignedProperty0').show();
+                module._displayVehicleAssignmentName(0);
+            } else {
+                $('#vehicleAssignedProperty0').hide();
+                module._showHideNonPrimaryDriverAssignmentHouseholdLevel(false);
+                if (numSelectedLicensedDrivers === 0) {
+                    $('#vehicleAssignedQuestion').find('fieldset').find('legend').hide();
+                }
+            }
+            
+            module._showHideNonPrimaryDriverAssignmentHouseholdLevel(true);
+           
+       
+        }
+    };
+    
+
+     module._showHideNonPrimaryDriverAssignmentHouseholdLevel = function(shouldShow) {
+   
+         var driverSelected,additionalDriverCheckBoxes, vehAssignedSelector,i,isAdditionalPermitOrUnlicensed;
+        
+           additionalDriverCheckBoxes = $('input[id^=driverSelected]');
+           if(additionalDriverCheckBoxes.length > 0) {
+      
+               for (i = 0; i <= additionalDriverCheckBoxes.length; i++) {
+                 
+                   driverSelected = $('input[id^=driverSelected_' + i + ']:checked');
+                   if ($(driverSelected).prop('checked')) {
+                       vehAssignedSelector = $('#vehicleAssignedProperty' + i);
+                       
+                 
+                       isAdditionalPermitOrUnlicensed = module._isDriverPermitOrUnlicensed(i);
+                       
+                       if ((shouldShow) && (!isAdditionalPermitOrUnlicensed)) {
+                           vehAssignedSelector.show();
+                           module._displayVehicleAssignmentName(i);
+                       } else {
+                           vehAssignedSelector.hide();
+                       }
+                   }
+               }
+           }
+    };
+   
+    
+
+
+       module.hideShowDriverQuestion = function(driverCollectionId, driverIndex) {
+        var requestUrl, ajaxSettings;
+        if ($('#driverShowQuestion_' + driverIndex).text() === 'Expand') {
+            if ($("#driverQuestionContainer" + driverIndex).hasClass("isDriverLoaded_false")) {
+                module._showDriverQuestionAjaxCall(driverCollectionId, driverIndex);
+            }
+            $('#driverQuestionSelected' + driverIndex).removeClass('hidden');
+            $('#driverShowQuestion_' + driverIndex).text('Collapse');
+        } else {
+            $('#driverQuestionSelected' + driverIndex).addClass('hidden');
+            $('#driverShowQuestion_' + driverIndex).text('Expand');
+        }
+    };
+
+    module.showDriverQuestion = function(driverCollectionId, driverIndex) {
+        if ($("#driverQuestionContainer" + driverIndex).hasClass("isDriverLoaded_false")) {
+            module._showDriverQuestionAjaxCall(driverCollectionId, driverIndex);
+        }else{
+            $('#driverQuestionSelected' + driverIndex).removeClass('hidden');
+            $('#driverShowQuestion_' + driverIndex).removeClass('hidden');
+            $('#driverShowQuestion_' + driverIndex).text('Collapse');
+        }
+    };
+
+    module._showDriverQuestionAjaxCall = function(driverCollectionId, driverIndex) {
+        var requestUrl, ajaxSettings;
+        requestUrl = aqp.utils.prependContextRootAndServletPath('driver/updateOnSelectDriverCheckbox/' + driverIndex + '/' +
+                driverCollectionId);
+        ajaxSettings = {
+            'type' : 'POST',
+            'contentType' : 'application/json',
+            'async' : false,
+            'dataType' : 'html',
+            'timeout' : 10000
+        };
+        module._callAjaxWithDriverIndex(requestUrl, null, ajaxSettings, module._handleSuccessOnShowDriverQ,
+                module._handleFailureOnShowDriverQ, driverIndex);
+    };
+
+    module._handleSuccessOnShowDriverQ = function(response, driverIndex) {
+        $('#driverQuestionContainer' + driverIndex).html(response).trigger('sfx-init').trigger('sfx-load');
+        $('#driverQuestionSelected' + driverIndex).removeClass('hidden');
+        $('#driverShowQuestion_' + driverIndex).text('Collapse');
+        $("#driverQuestionContainer" + driverIndex).toggleClass("isDriverLoaded_false");
+        module._bindEvents();
+    };
+
+    module._handleFailureOnShowDriverQ = function(jqXHR, status, message, index) {
+        var warningDiv = $('#showDriverQuestionWarningDiv' + index);
+        if (warningDiv.hasClass("hidden")) {
+            warningDiv.removeClass("hidden");
+        }
+    };
+
+    module._toggleHideShowQuestion = function(driverIndex, isChecked, driverCollectionId) {
+        if (isChecked) {
+            $('#driverShowQuestion_' + driverIndex).removeClass('hidden');
+            if ($('#driverQuestionContainer' + driverIndex).hasClass('isDriverLoaded_false') &&
+                    ($('#driverQuestionSelected' + driverIndex).length === 1)) {
+                $('#driverQuestionSelected' + driverIndex).removeClass('hidden');
+                $("#driverQuestionContainer" + driverIndex).toggleClass("isDriverLoaded_false");
+                module._toggleDriverSelection(driverIndex, isChecked);
+            } else {
+                module.hideShowDriverQuestionOnReload(driverCollectionId,driverIndex );
+//                $('#driverQuestionSelected' + driverIndex).addClass('hidden');
+//                $('#driverShowQuestion_' + driverIndex).removeClass('hidden');
+//                $('#driverShowQuestion_' + driverIndex).text('Expand');
+            }
+        } else {
+            $('#driverShowQuestion_' + driverIndex).addClass('hidden');
+        }
+    };
+    module._bindhideShowDriverQuestion = function() {
+        $('input[type="checkbox"]').filter("[id^='driverSelected_']").each(function() {
+            var ids, driverIndex, collectionId;
+            ids = $(this).attr('id').split('_');
+            driverIndex = ids[1];
+            collectionId = ids[2];
+            if (($('#globalAlerts').find('[class*="error"]').length > 0) && ($(this).prop("checked"))) {
+                //module._toggleHideShowQuestion(driverIndex, $(this).prop("checked"), collectionId);
+                module.showDriverQuestion(collectionId, driverIndex);
+            } else {
+                module._toggleHideShowQuestion(driverIndex, $(this).prop("checked"), collectionId);
+            }
+        });
+    };
+    module.hideShowDriverQuestionOnReload = function(driverCollectionId, driverIndex) {
+        if ($('#driverShowQuestion_' + driverIndex).text() === 'Collapse') {
+            $('#driverQuestionSelected' + driverIndex).removeClass('hidden');
+        } else {
+            $('#driverQuestionSelected' + driverIndex).addClass('hidden');
+            $('#driverShowQuestion_' + driverIndex).text('Expand');
+        }
+    };
+    
+ // End for Driver Vehicle Assignment ADP drivers at Household Level (CA)
+    
+})(aqp.driver, jQuery);
