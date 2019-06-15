@@ -1,0 +1,366 @@
+
+<%@ taglib prefix="sfx" uri="http://statefarm.com/apps/tags/sfx"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions"%>
+<%@ taglib prefix="aqp" tagdir="/WEB-INF/tags"%>
+
+<div class="questionInnerHTML hidden" id="driverQuestionSelected${status.index}">
+        <sfx:hideShow id="driverSelectedHideShow${status.index}"
+            expr="$('#driverSelected_${status.index}_${driver.collectionId}').is(':checked') &&  ${!driver.drivingHistoryExtensions.excludedDriverIndicator}" evalExprOnLoad="true" visible="true">
+            <sfx:hidden id="collectionId${status.index}" name="drivers[${status.index}].collectionId" />
+        <c:choose>
+            <c:when test="${form.prePopCRMData && driver.src eq 'CRM'}">
+                <aqp:textfieldRow id="firstName${status.index}"
+                    name="drivers[${status.index}].operator.person.firstName" />
+                <c:if test="${not empty driver.operator.person.middleName}">
+                    <aqp:textfieldRow id="middleName${status.index}"
+                        name="drivers[${status.index}].operator.person.middleName" labelText="${max.driver1MiddleName}" />
+                </c:if>
+                <aqp:textfieldRow id="lastName${status.index}" name="drivers[${status.index}].operator.person.lastName" />
+                <c:if test="${not empty driver.operator.person.suffix}">
+                    <aqp:textfieldRow id="suffix${status.index}" name="drivers[${status.index}].operator.person.suffix"
+                        labelText="${max.driver1Suffix}" />
+                </c:if>
+
+                <c:choose>
+                    <c:when test="${not empty driver.operator.dob}">
+                        <aqp:textfieldRow labelText="${max.dobLabel}" id="dob${status.index}"
+                            floatinglabelText="${max.dobFormat}" name="drivers[${status.index}].operator.dob"
+                            fieldAid="MM/DD/YYYY" />
+                    </c:when>
+                    <c:otherwise>
+                        <aqp:dateRow id="dob${status.index}" name="drivers[${status.index}].operator.dob"
+                            fieldAid="MM/DD/YYYY" validators="daterange({min:'10000101',max:'99991231'});"
+                            floatinglabelText="${max.dobFormat}" />
+                    </c:otherwise>
+                </c:choose>
+            </c:when>
+
+            <c:when test="${!form.prePopCRMData && channel eq cChannel && driver.src eq 'CRM'}">
+                <aqp:textfieldRow id="firstName${status.index}"
+                    name="drivers[${status.index}].operator.person.firstName" />
+                <c:if test="${not empty driver.operator.person.middleName}">
+                    <aqp:textfieldRow id="middleName${status.index}"
+                        name="drivers[${status.index}].operator.person.middleName" labelText="${max.driver1MiddleName}" />
+                </c:if>
+                <aqp:textfieldRow id="lastName${status.index}" name="drivers[${status.index}].operator.person.lastName" />
+                <c:if test="${not empty driver.operator.person.suffix}">
+                    <aqp:textfieldRow name="drivers[${status.index}].operator.person.suffix"
+                        labelText="${max.driver1Suffix}" id="suffix${status.index}" />
+                </c:if>
+                <aqp:textfieldRow id="dob${status.index}" name="drivers[${status.index}].operator.dob"
+                    labelText="${max.dobLabel}" value="XX/XX/XXXX" />
+            </c:when>
+
+            <c:when
+                test="${(driver.driver1Indicator ne true && (driver.src eq 'ADP' || (driver.src eq 'CRM' && (form.prePopCRMData || (channel eq cChannel && driver.driverSelected eq true )))))&&(channel eq saChannel || !driver.oprExtension.driverMatchesADP)}">
+                <aqp:textfieldRow id="firstName${status.index}"
+                    name="drivers[${status.index}].operator.person.firstName" validators="alphaEx" maximum="45"
+                    floatinglabelText="${max.fName}" />
+                <aqp:textfieldRow id="middleName${status.index}"
+                    name="drivers[${status.index}].operator.person.middleName" maximum="1"
+                    floatinglabelText="${max.driver1MiddleName}"
+                    validators="alpha({errorMessage:'${max.middleInitialInvalid}'});" size="mini" />
+                <aqp:textfieldRow id="lastName${status.index}" name="drivers[${status.index}].operator.person.lastName"
+                    validators="alphaEx" floatinglabelText="${max.lName}" maximum="120" />
+                <aqp:selectRow id="suffix${status.index}" name="drivers[${status.index}].operator.person.suffix"
+                    floatinglabelText="${max.driver1Suffix}" styleClass="submitHiddenSelectValue" />
+
+                <c:choose>
+                    <c:when
+                        test="${displayState[status.index].dateOfBirthMasked eq true && not empty driver.operator.dob}">
+                        <aqp:textfieldRow labelText="${max.dobLabel}" id="dob${status.index}"
+                            name="drivers[${status.index}].operator.dob" value="XX/XX/XXXX"
+                            floatinglabelText="${max.dobFormat}" />
+                    </c:when>
+                    <c:otherwise>
+                        <aqp:dateRow id="dob${status.index}" name="drivers[${status.index}].operator.dob"
+                            floatinglabelText="${max.dobFormat}" fieldAid="MM/DD/YYYY"
+                            validators="daterange({min:'10000101',max:'99991231'});" />
+                    </c:otherwise>
+                </c:choose>
+            </c:when>
+            <c:when
+                test="${((driver.driver1Indicator eq null || driver.driver1Indicator eq false) && (driver.src eq 'USER')) && (displayState[status.index].nameEdit eq true)}">
+                <aqp:textfieldRow id="firstName${status.index}"
+                    name="drivers[${status.index}].operator.person.firstName" validators="alphaEx" maximum="45"
+                    floatinglabelText="${max.fName}" />
+                <aqp:textfieldRow id="middleName${status.index}"
+                    name="drivers[${status.index}].operator.person.middleName" maximum="1"
+                    validators="alpha({errorMessage:'${max.middleInitialInvalid}'});" size="mini"
+                    floatinglabelText="${max.driver1MiddleName}" />
+                <aqp:textfieldRow id="lastName${status.index}" name="drivers[${status.index}].operator.person.lastName"
+                    validators="alphaEx" maximum="120" floatinglabelText="${max.lName}" />
+                <aqp:selectRow id="suffix${status.index}" name="drivers[${status.index}].operator.person.suffix"
+                    styleClass="submitHiddenSelectValue" floatinglabelText="${max.driver1Suffix}" />
+                <c:choose>
+                    <c:when
+                        test="${displayState[status.index].dateOfBirthEdit eq true && displayState[status.index].dateOfBirthMasked eq true && not empty driver.operator.dob }">
+                        <sfx:editModule>
+                            <aqp:dateRow id="dob${status.index}" name="drivers[${status.index}].operator.dob"
+                                fieldAid="MM/DD/YYYY"
+                                validators='daterange({min:"10000101",max:"99991231"}); dobAgeValidator({errorAgeTooYoung:"${max.ageTooYoung}",errorAgeTooOld:"${max.ageTooOld}",driverIndex:"${status.index}"});'
+                                value="XX/XX/XXXX" masker="generic({showCountLeft:'0',showCountRight:'0'})"
+                                floatinglabelText="${max.dobFormat}" />
+                        </sfx:editModule>
+                    </c:when>
+                    <c:when
+                        test="${displayState[status.index].dateOfBirthEdit eq false && displayState[status.index].dateOfBirthMasked eq true && not empty driver.operator.dob}">
+                        <aqp:textRow labelText="${max.dobLabel}" name="XX/XX/XXXX" />
+                    </c:when>
+                    <c:otherwise>
+                        <aqp:dateRow floatinglabelText="${max.dobFormat}" id="dateofbirth${status.index}"
+                            name="drivers[${status.index}].operator.dob" />
+                    </c:otherwise>
+                </c:choose>
+            </c:when>
+            <c:when
+                test="${((driver.driver1Indicator eq null || driver.driver1Indicator eq false) && (driver.src eq 'USER'))}">
+                <aqp:textRow name="drivers[${status.index}].operator.person.firstName" labelText="${max.fName}"
+                    helpTitle="${max.fName}" />
+                <c:if test="${not empty driver.operator.person.middleName}">
+                    <aqp:textRow name="drivers[${status.index}].operator.person.middleName"
+                        labelText="${max.driver1MiddleName}" />
+                </c:if>
+                <aqp:textRow name="drivers[${status.index}].operator.person.lastName" labelText="${max.lName}" />
+                <c:if test="${not empty driver.operator.person.suffix}">
+                    <aqp:textRow name="drivers[${status.index}].operator.person.suffix" labelText="${max.driver1Suffix}" />
+                </c:if>
+                <c:choose>
+                    <c:when
+                        test="${displayState[status.index].dateOfBirthEdit eq true && displayState[status.index].dateOfBirthMasked eq true && not empty driver.operator.dob }">
+                        <sfx:editModule>
+                            <aqp:dateRow id="dob${status.index}" name="drivers[${status.index}].operator.dob"
+                                fieldAid="MM/DD/YYYY"
+                                validators='daterange({min:"10000101",max:"99991231"}); dobAgeValidator({errorAgeTooYoung:"${max.ageTooYoung}",errorAgeTooOld:"${max.ageTooOld}",driverIndex:"${status.index}"});'
+                                value="XX/XX/XXXX" masker="generic({showCountLeft:'0',showCountRight:'0'})"
+                                floatinglabelText="${max.dobFormat}" />
+                        </sfx:editModule>
+                    </c:when>
+                    <c:when
+                        test="${displayState[status.index].dateOfBirthEdit eq false && displayState[status.index].dateOfBirthMasked eq true && not empty driver.operator.dob}">
+                        <aqp:textRow labelText="${max.dobLabel}" name="XX/XX/XXXX" />
+                    </c:when>
+                    <c:otherwise>
+                        <aqp:dateRow floatinglabelText="${max.dobFormat}" id="dob${status.index}"
+                            name="drivers[${status.index}].operator.dob" fieldAid="MM/DD/YYYY"
+                            validators='daterange({min:"10000101",max:"99991231"}); dobAgeValidator({errorAgeTooYoung:"${max.ageTooYoung}",errorAgeTooOld:"${max.ageTooOld}",driverIndex:"${status.index}"});' />
+                    </c:otherwise>
+                </c:choose>
+            </c:when>
+
+            <c:otherwise>
+                <aqp:textfieldRow id="firstName${status.index}"
+                    name="drivers[${status.index}].operator.person.firstName" />
+                <c:if test="${not empty driver.operator.person.middleName}">
+                    <aqp:textfieldRow id="middleName${status.index}"
+                        name="drivers[${status.index}].operator.person.middleName" labelText="${max.driver1MiddleName}" />
+                </c:if>
+                <aqp:textfieldRow id="lastName${status.index}" name="drivers[${status.index}].operator.person.lastName" />
+                <c:if test="${not empty driver.operator.person.suffix}">
+                    <aqp:textfieldRow id="suffix${status.index}" name="drivers[${status.index}].operator.person.suffix"
+                        labelText="${max.driver1Suffix}" />
+                </c:if>
+
+                <c:choose>
+                    <c:when
+                        test="${displayState[status.index].dateOfBirthMasked eq true && not empty driver.operator.dob}">
+                        <aqp:textfieldRow labelText="${max.dobLabel}" id="dob${status.index}"
+                            name="drivers[${status.index}].operator.dob" value="XX/XX/XXXX"
+                            floatinglabelText="${max.dobFormat}" />
+                    </c:when>
+                    <c:otherwise>
+                        <aqp:textfieldRow labelText="${max.dobLabel}" id="dob${status.index}"
+                            name="drivers[${status.index}].operator.dob" value="XX/XX/XXXX"
+                            floatinglabelText="${max.dobFormat}" />
+                    </c:otherwise>
+                </c:choose>
+
+            </c:otherwise>
+        </c:choose>
+
+        <%-- In North Carolina, check for the age received license field. If it is not available, always display the Original Date Licensed question. --%>
+            <c:if test="${mdp.drivers[status.index].operator.ageReceivedLicense.available eq false}">
+                <aqp:dateRow  name="drivers[${status.index}].operator.operatorLicense.driverLicense.userEnteredOriginalLicensedDate" id="userEnteredOriginalLicensedDate${status.index }" 
+                required="true" labelText="${max.whenLicensed}" helpContent="${max.whenLicensedHelp}"  floatinglabelText="${max.dobFormat}" />
+            </c:if>
+
+            <aqp:textfieldRow id="ageReceivedLicense${status.index}"
+                name="drivers[${status.index}].operator.ageReceivedLicense" floatinglabelText="${max.agefirstLicensed}"
+                hideshowId="whenReceivedLicense${status.index}" helpContent="${max.ageHelp}" helpTitle="${max.ageReceivedLicenseAVT }" required="false" size="mini"
+                validators="numberrange({errorMessage:'${max.ageReceivedLicenseInvalid}'});"/>
+
+            <sfx:hideShow styleClass="addbottomMargin" id="whenReceivedLicense${status.index}" visible="false" evalExprOnLoad="false"
+                expr="" hiddenSubmit="blanks">
+                <c:set var="driverLicenseMetaData" value="${mdp.drivers[status.index].operator.operatorLicense.driverLicense}" />
+                <aqp:dateFieldsSelectorRowTK id="whenLicensed${status.index}" dateLabel="${max.whenLicensed}" dateLabelName="whenLicensed${status.index}" dateLabelHelp="${max.whenLicensedHelp}" 
+                    monthPropertyId="monthLicensed${status.index}" monthPropertyName="drivers[${status.index}].operator.operatorLicense.driverLicense.monthLicensed" monthMetaData="${driverLicenseMetaData.monthLicensed}" monthPlaceholder="Month"
+                    dayPropertyId="dayLicensed${status.index}" dayPropertyName="drivers[${status.index}].operator.operatorLicense.driverLicense.dayLicensed" dayMetaData="${driverLicenseMetaData.dayLicensed}" dayPlaceholder="Day" 
+                    yearPropertyId="purchaseYear${status.index}" yearPropertyName="drivers[${status.index}].operator.operatorLicense.driverLicense.yearLicensed" yearMetaData="${driverLicenseMetaData.yearLicensed}" yearPlaceholder="Year"
+                    instructionalText="${max.whenReceivedLicenseInstructionalText}" />
+            </sfx:hideShow>
+                        
+            <sfx:hideShow id="whenContinuouslyLicensed${status.index}" evalExprOnLoad="false" visible="false" expr="" >     
+                <aqp:radioGroupRow dataType="boolean" id="continuouslyLicensedInd${status.index}" name="drivers[${status.index}].operator.continuouslyLicensedInd"
+                orientation="horizontal" required="false" />
+            </sfx:hideShow>
+
+            <!-- tyii This test against the available metadata property for numYears is a temporary fix for all non-CA states so empty month select box does not display. Remove after Product model updates for non-CA states generate correct metadata for numMonths after R2 2016 fixpack. -->
+            <c:if test="${mdp.drivers[status.index].operator.foreignDriverLicense.numYears.available}">
+                <sfx:row styleClass="control-group extraMarginTop">
+                    <sfx:cell colspan="12">
+                        <sfx:label styleClass="tkFieldLabel" forId="foreignLicenseNumYearsID" name="ForeignTimeLicensedLabel">${max.foreignTimeLicensedLabel}</sfx:label>
+                    </sfx:cell>
+                 </sfx:row>
+                 <sfx:row>
+                    <sfx:cell styleClass="bottomSpace" colspan="3">
+                        <sfx:selectTK name="drivers[${status.index}].operator.foreignDriverLicense.numYears" id="foreignLicenseNumYearsID" size="small" hint="${max.yearsPlaceholder}" ariaLabel="${max.foreignTimeLicensedLabel}" />
+                    </sfx:cell>
+                    <sfx:cell styleClass="bottomSpace" colspan="3">
+                        <sfx:selectTK name="drivers[${status.index}].operator.foreignDriverLicense.numMonths" id="foreignLicenseNumMonthsID" size="small" hint="${max.monthsPlaceholder}" />
+                    </sfx:cell>
+                </sfx:row>
+            </c:if>
+        
+            <aqp:radioGroupRow
+                id="numberOfDismissedMinorViolations${status.index}"
+                name="drivers[${status.index}].operator.numberOfDismissedMinorViolations"
+                orientation="vertical" required="true"
+                helpContent="${max.numberOfDismissedMinorViolationsHelp}"
+                helpTitle="${max.numberOfDismissedMinorViolationsAVT}" />
+               
+                <c:if test="${(driver.driver1Indicator eq null || driver.driver1Indicator eq false) && (driver.src eq 'USER') && ((displayState[status.index].driverLicenseHidden ne true) || (displayState[status.index].driverLicenseHidden eq true && (channel eq cChannel) && (empty driver.operator.operatorLicense.driverLicense.licenseNumberUserEntered && empty driver.operator.ssnUserEntered && empty driver.operator.operatorLicense.driverLicense.licenseNumberSystem && empty driver.operator.ssnSystem)))}">
+            <sfx:row>
+                <sfx:cell styleClass="idInstructions">
+                    <sfx:label forId="idInstructionForId" name="idInstruction" styleClass="embolden-font sectionHint">${max.idInstruction}<sfx:help
+                            id="idInstructionHelp" title="${max.idInstructionAVT }">${max.idHelp}</sfx:help>
+                    </sfx:label>
+                    <sfx:alert id="drivers[${status.index}]ID" name="drivers[${status.index}]" />
+                </sfx:cell>
+            </sfx:row>
+            <sfx:divider />
+            <c:if test="${channel eq cChannel}">
+                <aqp:dlnAndSsnAdditionalDriver dlnId="licenseNumberEntered_${status.index}"
+                    dlnProperty="drivers[${status.index}].operator.operatorLicense.driverLicense.licenseNumberUserEntered"
+                    dlnValue="${driver.operator.operatorLicense.driverLicense.licenseNumberUserEntered}"
+                    maskedDlnValue="${dlDisplay[status.index]}"
+                    dlStateProperty="drivers[${status.index}].oprExtension.licenseStateOrProvinceUserEntered"
+                    ssnId="ssnEntered_${status.index}" ssnProperty="drivers[${status.index}].operator.ssnUserEntered"
+                    ssnValue="${driver.operator.ssnUserEntered}" maskedSsnValue="${ssnDisplay[status.index]}"
+                    driverSourceProperty="${driver.src}" channelProperty="${channel}" 
+                    noEditDLWrapper="${dlNotShowEditBtnPerDriver[status.index]}"
+                    noEditSSNWrapper="${ssnNotShowEditBtnPerDriver[status.index]}"                    
+                    />
+            </c:if>
+            <c:if test="${channel eq saChannel}">
+                <aqp:dlnAndSsnAdditionalDriver dlnId="licenseNumberEntered_${status.index}"
+                    dlnProperty="drivers[${status.index}].operator.operatorLicense.driverLicense.licenseNumberSystem"
+                    dlnValue="${driver.operator.operatorLicense.driverLicense.licenseNumberSystem}"
+                    maskedDlnValue="${dlDisplay[status.index]}"
+                    dlStateProperty="drivers[${status.index}].operator.operatorLicense.driverLicense.licenseStateOrProvinceSystem"
+                    ssnId="ssnEntered_${status.index}" ssnProperty="drivers[${status.index}].operator.ssnSystem"
+                    ssnValue="${driver.operator.ssnSystem}" maskedSsnValue="${ssnDisplay[status.index]}"
+                    driverSourceProperty="${driver.src}" channelProperty="${channel}"
+                    noEditDLWrapper="${dlNotShowEditBtnPerDriver[status.index]}"
+                    noEditSSNWrapper="${ssnNotShowEditBtnPerDriver[status.index]}"
+                     />
+            </c:if>
+             <sfx:divider />
+        </c:if>
+        
+            <c:if test="${(driver.driver1Indicator ne true && (driver.src eq 'ADP' || (driver.src eq 'CRM' && (form.prePopCRMData || (channel eq cChannel && driver.driverSelected eq true ))) )) && (channel eq saChannel || ( form.prePopCRMData && channel eq cChannel && driver.src eq 'CRM') )}">
+                <sfx:divider />
+                <c:if test="${driver.isStateAndLicenseOrSsnReturnedFromAdp() eq false}">
+                    <sfx:row>
+                        <sfx:cell>
+                            <sfx:label forId="idInstructionForId" name="idInstruction" styleClass="embolden-font sectionHint">${max.idInstruction}<sfx:help
+                                    id="idInstructionHelp" title="${max.idInstructionAVT }" >${max.idHelp}</sfx:help>
+                            </sfx:label>
+                            <sfx:alert id="drivers[${status.index}]ID" name="drivers[${status.index}]" />
+                        </sfx:cell>
+                    </sfx:row>
+                </c:if>
+                <aqp:dlnAndSsnAdditionalDriver dlnId="licenseNumberEntered_${status.index}"
+                    dlnProperty="drivers[${status.index}].operator.operatorLicense.driverLicense.licenseNumberSystem"
+                    dlnValue="${driver.operator.operatorLicense.driverLicense.licenseNumberSystem}"
+                    maskedDlnValue="${dlDisplay[status.index]}"
+                    dlStateProperty="drivers[${status.index}].operator.operatorLicense.driverLicense.licenseStateOrProvinceSystem"
+                    ssnId="ssnEntered_${status.index}" ssnProperty="drivers[${status.index}].operator.ssnSystem"
+                    ssnValue="${driver.operator.ssnSystem}" 
+                    maskedSsnValue="${ssnDisplay[status.index]}"
+                    driverSourceProperty="${driver.src}" channelProperty="${channel}" 
+                    noEditDLWrapper="${dlNotShowEditBtnPerDriver[status.index]}"
+                    noEditSSNWrapper="${ssnNotShowEditBtnPerDriver[status.index]}"
+                    />
+                <sfx:divider />
+            </c:if>
+            <c:choose>
+                <c:when test="${applyGenderNeutralCheck}">
+                    <aqp:selectRow id="gender${status.index}" name="drivers[${status.index}].operator.gender" />
+                </c:when>
+                <c:otherwise>
+                    <aqp:radioGroupRow id="gender${status.index}" name="drivers[${status.index}].operator.gender"
+                    orientation="horizontal" required="false" />
+                </c:otherwise>
+            </c:choose>
+            <c:if test="${channel eq cChannel}">
+                <aqp:selectRow id="drivers[${status.index}].operator.driverRelationshipToApplicant" dependencyEnabled="false"
+                     name="drivers[${status.index}].operator.driverRelationshipToApplicant" labelText="${max.driverRelationshipToApplicant}" 
+                     floatinglabelText="${max.driverRelationship}" />
+            </c:if>
+            <c:if test="${channel eq saChannel}">  
+                <aqp:selectRow id="drivers[${status.index}].operator.driverRelationshipToApplicant" dependencyEnabled="true"
+                    hideshowId="driverRelationshipToApplicantOtherExplained_HS_${status.index }" floatinglabelText="${max.driverRelationship}"
+                    name="drivers[${status.index}].operator.driverRelationshipToApplicant"
+                    labelText="${max.driverRelationshipToApplicant}" />
+    
+                <sfx:hideShow id="driverRelationshipToApplicantOtherExplained_HS_${status.index}" visible="false"
+                    evalExprOnLoad="true" expr="aqp['driver']._isRelationhipOtherType('${status.index}')" hiddenSubmit="blanks">
+                    <sfx:inputRow id="driverRelationshipToApplicantOtherExplained_${status.index}"
+                        styleClass="row-fluid control-group">
+                        <sfx:row>
+                            <sfx:label styleClass="tkFieldLabel" forId="driverRelationshipToApplicantOtherExplained_${status.index}"
+                                id="driverRelationshipToApplicantOtherExplained_Label_${status.index}"
+                                name="drivers[${status.index}].operator.driverRelationshipToApplicantOtherExplained">
+                            </sfx:label>
+                          </sfx:row>
+                        <sfx:row>
+                         <sfx:cell colspan="6" >
+                            <sfx:selectTK id="driverRelationshipToApplicantOtherExplained_${status.index}"
+                                name="drivers[${status.index}].operator.driverRelationshipToApplicantOtherExplained" labelText="${max.driverRelationshipToApplicantOtherExplained}"/>
+                        </sfx:cell>
+                        </sfx:row>
+                        <sfx:alert
+                            id="drivers[${status.index}].operator.driverRelationshipToApplicantOtherExplained_AlertID"
+                            name="drivers[${status.index}].operator.driverRelationshipToApplicantOtherExplained" />
+                    </sfx:inputRow>
+                </sfx:hideShow>
+            </c:if>
+            <c:choose>
+                <c:when test="${fn:length(mdp.drivers[status.index].operator.maritalStatus.allowedValues) > 0}">
+                <div id="drivers[${status.index}].operator.maritalStatusDiv">
+                    <aqp:selectRow id="drivers[${status.index}].operator.maritalStatus"
+                        name="drivers[${status.index}].operator.maritalStatus" 
+                        labelText="${max.maritalStatus}" floatinglabelText="${max.maritalstatusDropdown}" required="false" />
+                </div>
+                </c:when>
+            </c:choose>
+            <c:set var="lowIncomeIndicatorMetaData" value="${mdp.drivers[status.index].operator.lowIncomeIndicator}" />
+               <div class="lowIncomeIndicatorSection">
+            <c:if test="${not empty lowIncomeIndicatorMetaData}"> 
+                        <sfx:hideShow id="lowIncomeIndicatorHideShowId${status.index}" visible="${lowIncomeIndicatorMetaData.required}" evalExprOnLoad="false" expr="">
+                            <aqp:radioGroupRow dataType="boolean" id="lowIncomeIndicator${status.index}" name="drivers[${status.index}].operator.lowIncomeIndicator" orientation="horizontal" helpContent="${max.lowIncomeHelp}"/>
+                        </sfx:hideShow>
+            </c:if>
+                    <sfx:hidden id="lowIncomeIndicator${status.index}hidden" name="drivers[${status.index}].operator.lowIncomeIndicator" />
+              </div>
+            
+            <div id="vehicleAssignedAndMilitaryProperties${status.index}">
+                <%@include file="../../pages/vehicleAssignedAndMilitaryPropertiesView.jsp"%>        
+            </div>
+        </sfx:hideShow>
+        
+       
+
+    
+</div>
