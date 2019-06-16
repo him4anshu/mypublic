@@ -1,0 +1,182 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" session="true"%>
+
+<%@ taglib prefix="sfx" uri="http://statefarm.com/apps/tags/sfx"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
+<%@ taglib prefix="aqpl"  uri="http://www.statefarm.com/aqp/layout" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions"%>
+<c:url var="submitAction" value="/${servletPath}/driver" />
+<c:url var="sendToAgent" value="/${servletPath}/driver/action/sendToAgent" />
+<c:url var="sendToNecho" value="/${servletPath}/driver/action/sendToNecho" />
+<sfx:row>
+    <c:choose>
+        <c:when test="${channel eq cChannel}">
+            <sfx:text>${max.mainInstruction}
+              <sfx:help id="mainInstructionHelp" title="${max.mainInstructionAVT }" content="${max.mainInstructionHelp}" />
+            </sfx:text>
+        </c:when>
+        <c:otherwise>
+            <sfx:text>${max.mainInstructionSA}
+              <sfx:help id="mainInstructionHelp" title="${max.mainInstructionSAAVT }" content="${max.mainInstructionHelp}" />
+            </sfx:text>
+        </c:otherwise>
+    </c:choose>
+</sfx:row>
+<aqpl:globalAlerts />
+<br/>
+<sfx:form name="driverForm" id="driverForm" bean="${form}" metadataProvider="${mdp}" action="${submitAction}"
+    method="post">
+    <sfx:row>
+        <sfx:text type="h3" styleClass="sectionHeading">${max.subtitle}</sfx:text>
+    </sfx:row>
+    <sfx:divider styleClass="redDivider" />
+    <%@include file="../includes/driver/applicantDriver.jspf"%>
+    <sfx:row>
+        <sfx:text type="h3">${max.addDriversTitle}</sfx:text>
+    </sfx:row>
+    <sfx:row>
+        <c:choose>
+            <c:when test="${channel eq cChannel}">
+                <sfx:text styleClass="sectionHint">${max.addDriversInstructions}</sfx:text>
+            </c:when>
+            <c:otherwise>
+                <sfx:text styleClass="sectionHint">${max.addDriversInstructionsSA}</sfx:text>
+            </c:otherwise>
+        </c:choose>
+    </sfx:row>
+	
+    <c:if test="${form.adpDriverPresent}">
+        <sfx:row>
+            <sfx:text type="h6">${max.driversFoundTitle}
+              <sfx:help id="driversFoundHelp" content="${max.driversFoundHelp}" />
+            </sfx:text>
+        </sfx:row>
+    </c:if>
+    
+    <div id="adpDriverLoadingParent">
+        <div id="adpDriverLoading">
+                <div id="driversSectionContainer">
+                    <%@include file="./driverSection.jsp"%>
+                </div>
+        </div>
+    </div>
+
+    <br/> <br/>
+    <sfx:text type="h3">${max.householdTitle}</sfx:text>
+
+    <aqp:radioGroupRow id="ownedResidenceLivedIn" name="ownedResidenceLivedIn" orientation="horizontal" labelText="${max.ownedResidenceLivedIn}" dataType="boolean"
+        hideshowId="ownedResidenceLivedInAdditionalQuestionsHideShow" helpContent="${max.ownedResidenceLivedInHelpText}" helpTitle="${max.ownedResidenceLivedInAVT }" />
+    <%-- The HideShow is in ownedResidenceLivedInAdditionalQuestions.jsp --%>
+
+    <div id="ownedResidencePotentialDiscountContainer">
+        <sfx:row type="tertiary" id="ownedResidenceLivedInPotentialDiscount" styleClass="hide">
+            <sfx:alert id="ownedResidenceLivedInDiscount" name="ownedResidenceLivedInDiscount"
+                message="${max.ownedResidenceLivedInDiscount}" type="discount">
+                <sfx:help id="discountHelp" title="${max.ownedResidenceLivedInDiscountHelpAVT }">${max.ownedResidenceLivedInDiscountHelp}</sfx:help>
+            </sfx:alert>
+            <br />
+            <br />
+        </sfx:row>
+    </div>
+
+    <sfx:hidden name="dependentOwnedResidenceLivedInAdditionalQuestions"
+        id="dependentOwnedResidenceLivedInAdditionalQuestions"
+        value="${dependentOwnedResidenceLivedInAdditionalQuestions}" />
+    <div id="ownedResidenceLivedInAdditionalQuestions">
+        <c:choose>
+            <%-- Default behavior --%>
+            <c:when test="${empty dependentOwnedResidenceLivedInAdditionalQuestions}">
+                <aqp:selectRow id="resType" metadata="${currentMetaDataProvider.resType}" name="resType" floatinglabelText="${max.resTypeDropdown}" />
+                <aqp:selectRow id="ownStatus" metadata="${currentMetaDataProvider.ownStatus}" name="ownStatus" floatinglabelText="${max.ownStatusDropdown}" />
+            </c:when>
+            <%-- Special behavior for Florida --%>
+            <c:otherwise>
+                <%@include file="ownedResidenceLivedInAdditionalQuestions.jsp"%>
+            </c:otherwise>
+        </c:choose>
+    </div>
+    
+
+    <c:if test="${form.showNumVehiclesUsedRegularly}">
+        <aqp:textfieldRow id="numVehiclesUsedRegularly" name="numVehiclesUsedRegularly" 
+            helpContent="${max.howManyHouseholdVehiclesHelp}" helpTitle="${max.numVehiclesUsedRegularlyAVT }" size="small" required="false" floatinglabelText="${max.numVehicles}"
+            validators="integer;numberrange({min:1, max:99, errorMessage:'${max.odometerOutOfRangeError}'});" maximum="2"/>
+    </c:if>
+    
+    <c:if test="${not empty max.driverInHouseHoldFinancialResponsibility}">
+    	<aqp:radioGroupRow id="driverInHouseHoldFinancialResponsibility" name="driverInHouseHoldFinancialResponsibility" dataType="boolean"
+    		helpContent="${max.driverInHouseHoldFinancialResponsibilityHelp}" orientation="horizontal" labelText="${max.driverInHouseHoldFinancialResponsibility}"/>
+    </c:if>
+
+    <c:if test="${not empty max.driversExpectedAverageIncome}">
+    	<%@include file="../includes/driver/incomeLessThan500Dollars.jspf"%>
+    </c:if>     
+
+    <c:if test="${not empty max.everyDriverWearSeatBeltsLabel}">
+    	<%@include file="../includes/driver/autoSeatBeltQuestion.jspf"%>
+    </c:if>
+    
+    <c:if test="${not empty max.driverHasDependentsLabel}">
+    	<%@include file="../includes/driver/dependentsOrIndividuals.jspf"%> 
+    </c:if>
+    
+    <c:if test="${not empty max.driverInHouseHoldConvictedOfFraud}">
+    	<%@include file="../includes/driver/convictedOfFraud.jspf" %>
+    </c:if>
+
+    <c:choose>
+        <c:when test="${channel eq cChannel}">
+            <aqp:radioGroupRow id="citizensPropInsCorporation" name="citizensPropInsCorporation"
+                labelText="${max.citizensPropInsCorporation}" orientation="horizontal" dataType="boolean"
+                helpContent="${max.citizensPropInsCorporationHelpText}" helpTitle="${max.citizensPropInsCorporationAVT }"/>
+        </c:when>
+        <c:otherwise>
+            <aqp:radioGroupRow id="citizensPropInsCorporation" name="citizensPropInsCorporation"
+                labelText="${max.citizensPropInsCorporationSA}" orientation="horizontal" dataType="boolean"
+                helpContent="${max.citizensPropInsCorporationHelpText}" helpTitle="${max.citizensPropInsCorporationSAAVT }"/>
+        </c:otherwise>
+    </c:choose>
+    
+ 
+     
+    <aqp:textfieldRow id="nonNegligentLosses" name="nonNegligentLosses" 
+            helpContent="${max.nonNegligentLossesHelp}" helpTitle="${max.nonNegligentLossesAVT }" size="small" required="false"
+            validators="integer;numberrange({min:0, max:9'});" maximum="1"/>
+    
+     <sfx:hidden name="shouldDisplayVehicleAssignedQuestionAtHouseholdLevel"
+        id="shouldDisplayVehicleAssignedQuestionAtHouseholdLevel"
+        value="${shouldDisplayVehicleAssignedQuestionAtHouseholdLevel}" />
+    <%-- California behavior --%>
+	<c:if
+		test="${not empty shouldDisplayVehicleAssignedQuestionAtHouseholdLevel}">
+
+			<%@include file="vehicleAssignedHouseholdLevelView.jsp" %>
+
+	</c:if>
+	
+	<%-- NC plup question --%>
+	<c:if test="${not empty max.plupPolicyIndicator}">
+	    <aqp:radioGroupRow id="plupPolicyIndicator" name="plupPolicyIndicator"
+                labelText="${max.plupPolicyIndicator}" orientation="horizontal" dataType="boolean"
+                helpContent="${max.plupPolicyIndicatorHelpText}" helpTitle="${max.plupPolicyIndicatorAVT }"/>
+	</c:if>
+	
+	
+	
+
+	<%@include file="../includes/driver/deleteModal.jspf"%>
+    <%@include file="../includes/driver/maxDriversSelectedForQuoteModal.jspf"%>
+    <sfx:hidden id="driverAction" name="driverAction" value="" />
+    <sfx:hidden id="driverIdDeleted" name="driverIdDeleted" value="" />
+    <sfx:hidden id="driverIndexDeleted" name="driverIndexDeleted" value="" />
+    <sfx:hidden name="pageName" id="page-name" value="driver" />
+    <sfx:hidden name="effectiveDate" id="effectiveDate" value=" ${effectiveDate}" />
+    <sfx:hidden name="channel" id="channel" value="${channel}" />
+    <sfx:hidden name="sendToAgentAction" id="sendToAgentAction" value="${sendToAgent}" />
+    <sfx:hidden name="sendToNechoAction" id="sendToNechoAction" value="${sendToNecho}" />
+    <sfx:hidden name="isAdpLoaded" id="isAdpLoaded" value="${isAdpLoaded}" />
+    <sfx:hidden name="lockHelp" id="lockHelp" value="${max['lockHelp']}" />
+    <sfx:hidden name="state" id="state" value="${state}" />
+    <input id="readOnlyIndicator" type="hidden" data-read-only="${postPurchase}">
+</sfx:form>
+
+<%@include file="../includes/drivingHistory/drivingHistoryPrefetch.jspf" %>
