@@ -1,0 +1,10 @@
+PMU_JAVACMD=/opt/vgi/java/jdk1.8.0_32bit_current/jre/bin/java
+
+echo "PMU_JAVACMD=${PMU_JAVACMD}"
+
+export CLASSPATH="${USA_BUNDLE_BASEDIR}/pmu/java/*:${USA_BUNDLE_BASEDIR}/pmu/rte:${GS_PATH}:"
+if [[ -n ${VERSION} ]];then
+        if [[ -n ${NGA_APP} ]]; then
+                echo "This is a PCF app"
+                ${PMU_JAVACMD} com.vanguard.services.pmu.PMUAdmin -f ${SSI_FILE} -c ${COMMAND} -x ${XML_FILE} -d                 ${PMU_JAVACMD} com.vanguard.services.pmu.PMUAdmin -f ${SSI_FILE} -c ${COMMAND} -x ${XML_FILE} -d ${DIVISION} -n ${NGA_APP}
+                EXIT_CODE=$?
